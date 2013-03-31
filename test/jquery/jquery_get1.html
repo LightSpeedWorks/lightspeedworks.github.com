@@ -55,10 +55,32 @@ $(function ($) {
     resultJSON.after(str);
   });
 });
+function func1() {
+  var resultSelect = $('#resultSelect');
+  var selectUser = $('#selectUser');
+  resultSelect.append('<hr/><b>' + selectUser.val() + '</b>');
+  $.getJSON('http://graph.facebook.com/' + selectUser.val() + '?ignoreCache=' + (new Date())/1000, function (json) {
+    resultSelect.append('<br/><b><u>result of getJSON:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
+    var str = '';
+    for (var key in json) {
+      str += '<br/><font color="gray">' + key + '</font>: <b>' +
+        json[key] + '</b> (' + JSON.stringify(json[key]) + ')';
+    }
+    str += '<br/><br/>' + JSON.stringify(json);
+    resultSelect.append(str);
+  });
+}
 </script>
 </head>
 <body>
 <h1>jquery_get1.html</h1>
+<hr/>
+<select id="selectUser" onchange="func1()">
+<option value=""></option>
+<option value="zuck">zuck</option>
+<option value="kazuaki.nishizawa">kazuaki.nishizawa</option>
+</select>
+<div id="resultSelect"><font color="gray"></font></div>
 <hr/><div id="result"><font color="gray">loading...</font></div>
 <hr/><div id="resultText"><font color="gray">pending...</font></div>
 <hr/><div id="resultData"><font color="gray">pending...</font></div>
