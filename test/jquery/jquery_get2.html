@@ -16,12 +16,10 @@ startTime = new Date();
 jQuery(function (jQuery) {
   var result = jQuery('#result');
   result.text('initialized. (' + (new Date() - startTime)/1000.0 + 'sec)');
-  result.append('</br>typeof window.jQuery: ' + typeof window.jQuery);
 
   var resultText = jQuery('#resultText');
   resultText.text('requesting get text...');
   jQuery.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, {}, function (str) {
-    result.append('</br>111 typeof window.jQuery: ' + typeof window.jQuery);
     resultText.html('<b><u>result of get text:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     resultText.append('<br/>' + str);
   }, 'text');
@@ -29,7 +27,6 @@ jQuery(function (jQuery) {
   var resultData = jQuery('#resultData');
   resultData.text('requesting get text...');
   jQuery.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (data) {
-    result.append('</br>222 typeof window.jQuery: ' + typeof window.jQuery);
     resultData.html('<b><u>result of get data:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     if (typeof data === 'string')
       resultData.append('<br/><b>type: ' + typeof data + '</b></br>' + data);
@@ -48,7 +45,6 @@ jQuery(function (jQuery) {
   var resultJSON = jQuery('#resultJSON');
   resultJSON.text('requesting getJSON ...');
   jQuery.getJSON('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (json) {
-    result.append('</br>333 typeof window.jQuery: ' + typeof window.jQuery);
     resultJSON.html('<b><u>result of getJSON:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     var str = '';
     for (var key in json) {
