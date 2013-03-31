@@ -1,62 +1,10 @@
 <!DOCTYPE html>
 <html>
 <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-<script charset="utf-8">
-// function windowOnLoad() { alert('windowOnLoad() is called.'); } window.onload = windowOnLoad;
-startTime = new Date();
-$(function ($) {
-  var result = $('#result');
-  result.text('initialized. (' + (new Date() - startTime)/1000.0 + 'sec)');
-  result.append('</br>typeof window.$: ' + typeof window.$);
-
-  var resultText = $('#resultText');
-  resultText.text('requesting get text...');
-  $.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, {}, function (str) {
-    result.append('</br>111 typeof window.$: ' + typeof window.$);
-    resultText.html('<b><u>result of get text:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
-    resultText.append('<br/>' + str);
-  }, 'text');
-
-  var resultData = $('#resultData');
-  resultData.text('requesting get text...');
-  $.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (data) {
-    result.append('</br>222 typeof window.$: ' + typeof window.$);
-    resultData.html('<b><u>result of get data:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
-    if (typeof data === 'string')
-      resultData.append('<br/><b>type: ' + typeof data + '</b></br>' + data);
-    else if (typeof data === 'object') {
-      var str = '';
-      for (var key in data) {
-        str += '<br/>' + key + ': ' + data[key];
-      }
-      resultData.append('<br/><b>type: ' + typeof data + '</b></br>' + str);
-    }
-    else {
-      resultData.append('<br/><b>type: ' + typeof data + '</b></br>' + data);
-    }
-  });
-
-  var resultJSON = $('#resultJSON');
-  resultJSON.text('requesting getJSON ...');
-  $.getJSON('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (json) {
-    result.append('</br>333 typeof window.$: ' + typeof window.$);
-    resultJSON.html('<b><u>result of getJSON:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
-    var str = '';
-    for (var key in json) {
-      str += '<font color="gray">' + key + '</font>: <b>' +
-        json[key] + '</b> (' + JSON.stringify(json[key]) + ')<br/>';
-    }
-    str += '<br/>' + JSON.stringify(json);
-    resultJSON.after(str);
-  });
-});
-</script>
 <body>
-<h1>start of HTML</h1>
-<hr/><div id="result"><font color="gray">loading...</font></div>
-<hr/><div id="resultText"><font color="gray">pending...</font></div>
-<hr/><div id="resultData"><font color="gray">pending...</font></div>
-<hr/><div id="resultJSON"><font color="gray">pending...</font></div>
+<h1>lightspeedworks.github.com</h1>
+<h2><a href="jQuery_get1.html">jQuery_get1</a></h2>
+<h2><a href="jQuery_get2.html">jQuery_get2</a></h2>
 <hr/><br/>end of HTML
 </body>
 </html>
