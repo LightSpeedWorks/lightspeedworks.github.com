@@ -19,14 +19,14 @@ $(function ($) {
 
   var resultText = $('#resultText');
   resultText.text('requesting get text...');
-  $.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, {}, function (str) {
+  $.get('http://graph.facebook.com/kazuaki.nishizawa', {}, function (str) {
     resultText.html('<b><u>result of get text:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     resultText.append('<br/>' + str);
   }, 'text');
 
   var resultData = $('#resultData');
   resultData.text('requesting get text...');
-  $.get('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (data) {
+  $.get('http://graph.facebook.com/kazuaki.nishizawa', function (data) {
     resultData.html('<b><u>result of get data:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     if (typeof data === 'string')
       resultData.append('<br/><b>type: ' + typeof data + '</b></br>' + data);
@@ -44,7 +44,7 @@ $(function ($) {
 
   var resultJSON = $('#resultJSON');
   resultJSON.text('requesting getJSON ...');
-  $.getJSON('http://graph.facebook.com/kazuaki.nishizawa?ignoreCache=' + (new Date())/1000, function (json) {
+  $.getJSON('http://graph.facebook.com/kazuaki.nishizawa', function (json) {
     resultJSON.html('<b><u>result of getJSON:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     var str = '';
     for (var key in json) {
@@ -55,11 +55,12 @@ $(function ($) {
     resultJSON.after(str);
   });
 });
-function func1() {
+function selectUserOnChange() {
+  startTime = new Date();
   var resultSelect = $('#resultSelect');
   var selectUser = $('#selectUser');
   resultSelect.append('<hr/><b>' + selectUser.val() + '</b>');
-  $.getJSON('http://graph.facebook.com/' + selectUser.val() + '?ignoreCache=' + (new Date())/1000, function (json) {
+  $.getJSON('http://graph.facebook.com/' + selectUser.val(), function (json) {
     resultSelect.append('<br/><b><u>result of getJSON:</u></b> (' + (new Date() - startTime)/1000.0 + 'sec)');
     var str = '';
     for (var key in json) {
@@ -76,10 +77,9 @@ function func1() {
 <h1>jquery_get1.html</h1>
 <div id="resultSelect"><font color="gray"></font></div>
 <hr/>
-<select id="selectUser" onchange="func1()">
-<option value=""></option>
-<option value="zuck">zuck</option>
+<select id="selectUser" onchange="selectUserOnChange()">
 <option value="kazuaki.nishizawa">kazuaki.nishizawa</option>
+<option value="zuck">zuck</option>
 </select>
 <hr/><div id="result"><font color="gray">loading...</font></div>
 <hr/><div id="resultText"><font color="gray">pending...</font></div>
