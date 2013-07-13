@@ -1,15 +1,31 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<meta charset="UTF-8">
 <meta http-equiv="Content-Language" content="ja">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<meta charset="UTF-8"> 
 <title>test jquery - 光速工房 LightSpeedWorks</title>
-<!--link rel="stylesheet" href="/stylesheets/style.css"/-->
+<link href="../../css/bootstrap.min.css" rel="stylesheet" media="screen">
+<link href="../../css/bootstrap-responsive.min.css" rel="stylesheet" media="all"/>
+</head>
+<body>
+<div class="container">
+<h1>jquery_get1.html</h1>
+<div id="resultSelect"><font color="gray"></font></div>
+<hr/>
+<select id="selectUser" onchange="selectUserOnChange()">
+<option value="kazuaki.nishizawa">kazuaki.nishizawa</option>
+<option value="zuck">zuck</option>
+</select>
+<hr/><div id="result"><font color="gray">loading...</font></div>
+<hr/><div id="resultText"><font color="gray">pending...</font></div>
+<hr/><div id="resultData"><font color="gray">pending...</font></div>
+<hr/><div id="resultJSON"><font color="gray">pending...</font></div>
+<hr/><div><a href="/">(&lt;&lt;&lt;)</a>/<a href="/test/">test</a>/<a href="/test/jquery/">jquery</a> -
+<a href="../">(&lt;&lt;)</a> - <a href="./">(&lt;)</a> -
+<a href="https://github.com/LightSpeedWorks/lightspeedworks.github.com/tree/master/test/jquery">(GitHub Source)</a></div>
 <script>protocol = location.protocol; if (protocol.substr(0,4) !== 'http') protocol = 'http:'
 document.write(unescape('%3Cscript type="text/javascript" src="' + protocol + '//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"%3E%3C/script%3E'));</script>
-<!--script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script-->
-<!--script>window.jQuery || document.write(unescape('%3Cscript src="jquery-1.9.1.min.js"%3E%3C/script%3E'))</script-->
 <script charset="utf-8">
 // function windowOnLoad() { alert('windowOnLoad() is called.'); } window.onload = windowOnLoad;
 startTime = new Date();
@@ -72,21 +88,7 @@ function selectUserOnChange() {
   });
 }
 </script>
-</head>
-<body>
-<h1>jquery_get1.html</h1>
-<div id="resultSelect"><font color="gray"></font></div>
-<hr/>
-<select id="selectUser" onchange="selectUserOnChange()">
-<option value="kazuaki.nishizawa">kazuaki.nishizawa</option>
-<option value="zuck">zuck</option>
-</select>
-<hr/><div id="result"><font color="gray">loading...</font></div>
-<hr/><div id="resultText"><font color="gray">pending...</font></div>
-<hr/><div id="resultData"><font color="gray">pending...</font></div>
-<hr/><div id="resultJSON"><font color="gray">pending...</font></div>
-<hr/><div><a href="/">(&lt;&lt;&lt;)</a>/<a href="/test/">test</a>/<a href="/test/jquery/">jquery</a> -
-<a href="../">(&lt;&lt;)</a> - <a href="./">(&lt;)</a> -
-<a href="https://github.com/LightSpeedWorks/lightspeedworks.github.com/tree/master/test/jquery">(GitHub Source)</a></div>
+<script src="../../js/bootstrap.min.js"></script>
+</div>
 </body>
 </html>
