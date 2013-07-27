@@ -1,4 +1,4 @@
-lightspeedworks.github.com
+lightspeedworks.github.io
 ==========================
 
 LightSpeedWorks pages {光速工房}
