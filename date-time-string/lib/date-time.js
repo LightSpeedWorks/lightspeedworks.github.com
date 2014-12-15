@@ -65,11 +65,32 @@ function toTimeString(x) {
 
 //######################################################################
 
+var weekNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// class Date : method toHttpDate extension
+// Date+Time 日付+時刻
+// "Thu, 01 Dec 1994 16:00:00 GMT"
+function toHttpDate(x) {
+  x = x instanceof Date ? x : this instanceof Date ? this : new Date;
+  return weekNames[x.getUTCDay()] + ', ' +
+    pad2(x.getUTCDate()) + ' ' +
+    monthNames[x.getUTCMonth()] + ' ' +
+    x.getUTCFullYear() + ' ' +
+    pad2(x.getUTCHours()) + ':' +
+    pad2(x.getUTCMinutes()) + ':' +
+    pad2(x.getUTCSeconds()) + ' GMT';
+}
+
+
+//######################################################################
+
 // class Date: extend method to*String()
 function extendDateToDateTimeString() {
   Date.prototype.toDateTimeString = toDateTimeString;
   Date.prototype.toDateString     = toDateString;
   Date.prototype.toTimeString     = toTimeString;
+  Date.prototype.toHttpDate       = toHttpDate;
 }
 
 
@@ -87,6 +108,7 @@ var DateTime = {
   toDateTimeString:           toDateTimeString,
   toDateString:               toDateString,
   toTimeString:               toTimeString,
+  toHttpDate:                 toHttpDate,
   extendDateToDateTimeString: extendDateToDateTimeString,
   extendDateToString:         extendDateToString
 };
