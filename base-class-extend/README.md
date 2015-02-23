@@ -25,8 +25,11 @@ $ npm install base-class-extend
 ```
 
 or
+
+http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js
+
 ```html
-<script src="http://lightspeedworks.github.io/base-class/lib/base-class.js"></script>
+<script src="http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js"></script>
 ```
 
 # USAGE:
@@ -51,12 +54,14 @@ var YourSubClass = YourClass.extend([name], [proto], [classProps]);
   + **BaseClass**: Base class or Super class for inherits
   + **name**: string name of your class, optional
   + **proto**: the prototype object for your class, optional
-    + **new** or **constructor**: constructor function, optional
-    + **get** getter or **set** setter: getter/setter, optional
+    + **new**, **ctor** or **constructor**: constructor function, optional
+    + **get** prop(): getter function, optional
+    + **set** prop(value): setter function, optional
     + **any methods**: any method or member function, optional
   + **classProps**: the object for class or static properties, optional
-    + **init** or **initialize**: initialize function, optional
-    + **get** getter or **set** setter: getter/setter, optional
+    + **init**: initialize function, optional
+    + **get** prop(): getter function, optional
+    + **set** prop(value): setter function, optional
     + **any methods**: any static method or class function, optional
 
   You have to omit **classProps** also, if you omit **proto**.<br/>
@@ -95,7 +100,7 @@ myObj.show();
 myObj.value++; // 6 -> 7 throws Error
 ```
 
-## method: Class.new(...)
+## method: Class.new(...) or Class.create(...)
 
   Create an object, instance of the Class.
 
@@ -104,6 +109,9 @@ myObj.value++; // 6 -> 7 throws Error
 ```js
 var YourClass = BaseClass.extend('YourClass');
 var yourObj = YourClass.new();
+
+// or
+var yourObj = YourClass.create();
 
 // or
 var yourObj = new YourClass();
@@ -203,7 +211,8 @@ this.private({
 ### Parameters
 
   + **proto**: the prototype object contains methods accessing private variables, required
-    + **get** getter or **set** setter: getter/setter, optional
+    + **get** prop(): getter function, optional
+    + **set** prop(value): setter function, optional
     + **any methods**: any method or member function, optional
 
 ### Returns

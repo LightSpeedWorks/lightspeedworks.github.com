@@ -15,6 +15,8 @@ getter/setterをサポートします。
 `constructor`も、`prototype`も、`__proto__`も、<br/>
 `Object.defineProperty`も、`Object.setPrototypeOf`も、等も不要です。
 
+関連記事: [[JavaScript] getter/setterも使えるエコ楽なクラス定義 - もちろん継承も - private変数も](http://qiita.com/LightSpeedC/items/3946088b58925234cc48) - qiita
+
 ![base-class.png](images/base-class.png)
 
 # インストール:
@@ -24,8 +26,11 @@ $ npm install base-class-extend
 ```
 
 または
+
+http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js
+
 ```html
-<script src="http://lightspeedworks.github.io/base-class/lib/base-class.js"></script>
+<script src="http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js"></script>
 ```
 
 # 使い方:
@@ -50,12 +55,14 @@ var YourSubClass = YourClass.extend([name], [proto], [classProps]);
   + **BaseClass**: 継承のための基底クラスまたはスーパークラス
   + **name**: 新しいクラス名の文字列 (省略可)
   + **proto**: 新しいクラスのプロトタイプオブジェクト (省略可)
-    + **new**または**constructor**: コンストラクタ関数 (省略可)
-    + **get** getterまたは**set** setter: getter/setter (省略可)
+    + **new**, **ctor** または **constructor**: コンストラクタ関数 (省略可)
+    + **get** prop(): getter関数 (省略可)
+    + **set** prop(value): setter関数 (省略可)
     + **any methods**: メソッドまたはメンバー関数 (省略可)
   + **classProps**: クラス／静的プロパティのオブジェクト (省略可)
-    + **init**または**initialize**: 初期化関数 (省略可)
-    + **get** getterまたは**set** setter: getter/setter,  (省略可)
+    + **init**: 初期化関数 (省略可)
+    + **get** prop(): getter関数 (省略可)
+    + **set** prop(value): setter関数 (省略可)
     + **any methods**: 静的メソッドまたはクラス関数 (省略可)
 
   ※**proto**を省略した場合**classProps**も省略する必要がある<br/>
@@ -94,7 +101,7 @@ myObj.show();
 myObj.value++; // 6 -> 7 throws Error
 ```
 
-## メソッド: Class.new(...)
+## メソッド: Class.new(...) または Class.create(...)
 
   クラスのインスタンスオブジェクトを作成する。
 
@@ -103,6 +110,9 @@ myObj.value++; // 6 -> 7 throws Error
 ```js
 var YourClass = BaseClass.extend('YourClass');
 var yourObj = YourClass.new();
+
+// または
+var yourObj = YourClass.create();
 
 // または
 var yourObj = new YourClass();
@@ -202,7 +212,8 @@ this.private({
 ### パラメータ
 
   + **proto**: プライベート変数にアクセスできるメソッドが含まれるプロトタイプオブジェクト (必須)
-    + **get** getterまたは**set** setter: getter/setter (省略可)
+    + **get** prop(): getter関数 (省略可)
+    + **set** prop(value): setter関数 (省略可)
     + **any methods**: メソッドまたはメンバー関数 (省略可)
 
 ### 返り値
