@@ -40,10 +40,10 @@
       Function.prototype.__defineGetter__('name', fname);
   }
 
-  // BaseClass.extend
+  // Base.extend
   // Usage:
   //    var SimpleClass =
-  //        BaseClass.extend(
+  //        Base.extend(
   //          {new: function SimpleClass() {
   //                  SimpleClass.super_.call(this);
   //                  this.prop1 = 'val'; },
@@ -51,10 +51,10 @@
   //           get prop1() { return this._prop1; },
   //           set prop1(val) { this._prop1 = val; }},
   //          {classMethod1: function () {}});
-  function BaseClass_extend(name, proto, classProps) {
+  function Base_extend(name, proto, staticProps) {
     // check argument: name
     if (typeof name !== 'string') {
-      classProps = proto;
+      staticProps = proto;
       proto = name;
       name = '';
     }
@@ -63,83 +63,73 @@
     var superCtor = typeof this === 'function' ? this : Object;
 
     var ctor = proto.hasOwnProperty('constructor') ? proto.constructor :
-               proto.hasOwnProperty('ctor')        ? proto.ctor :
-               proto.hasOwnProperty('new')         ? proto.new :
-      Function('proto, superCtor, BaseClass_create',
+               proto.hasOwnProperty('new')         ? proto['new'] :
+      Function('proto, superCtor, Base_create',
         'return function ' + name + '() {\n' +
         '  "use strict";' +
         '  if (!(this instanceof proto.constructor) ||\n' +
         '      this instanceof Array && !this.hasOwnProperty("length") ||\n' +
         '      this instanceof Error && !this.hasOwnProperty("message"))\n' +
-        '    return BaseClass_create.apply(proto.constructor, arguments);\n' +
+        '    return Base_create.apply(proto.constructor, arguments);\n' +
         '  if (superCtor !== Object && superCtor !== Array && superCtor !== Error)\n' +
         '    superCtor.apply(this, arguments); }')
-        (proto, superCtor, BaseClass_create);
+        (proto, superCtor, Base_create);
     if (typeof ctor !== 'function')
       throw new TypeError('constructor must be a function');
     if (!ctor.name && name !== '') {
       ctor.prototype = proto;
-      ctor = Function('proto, ctor, BaseClass_create',
+      ctor = Function('proto, ctor, Base_create',
         'return function ' + name + '() {\n' +
         '  "use strict";' +
         '  if (!(this instanceof proto.constructor) ||\n' +
         '      this instanceof Array && !this.hasOwnProperty("length") ||\n' +
         '      this instanceof Error && !this.hasOwnProperty("message"))\n' +
-        '    return BaseClass_create.apply(proto.constructor, arguments);\n' +
+        '    return Base_create.apply(proto.constructor, arguments);\n' +
         '  ctor.apply(this, arguments); }')
-        (proto, ctor, BaseClass_create);
+        (proto, ctor, Base_create);
     }
     ctor.prototype = proto;
 
     // override constructor
-    delete proto.ctor;
-    delete proto.new;
+    delete proto['new'];
     setValue(proto, 'constructor', ctor);
 
     // inherits from super constructor
     setProto(proto, superCtor.prototype);
 
     // constructor.__proto__ -> for inherits class methods
-    if (classProps == null || typeof classProps !== 'object') {
-      setProto(ctor, superCtor);
+    if (staticProps == null || typeof staticProps !== 'object') {
+      setProto(ctor, superCtor === Object ? Function.prototype : superCtor);
     }
     else {
-      setProto(ctor, classProps);
-      setProto(classProps, superCtor);
+      setProto(ctor, staticProps);
+      setProto(staticProps, superCtor === Object ? Function.prototype : superCtor);
 
       // class initializer: init
-      var init = classProps.hasOwnProperty('init') && classProps.init;
-      delete classProps.init;
+      var init = staticProps.hasOwnProperty('init') && staticProps.init;
+      delete staticProps.init;
       if (typeof init === 'function') init.call(ctor);
 
       // add name to methods/functions if not found
-      var keys = Object.keys(classProps);
+      var keys = Object.keys(staticProps);
       for (var i = 0, n = keys.length; i < n; ++i) {
         var key = keys[i];
-        if (typeof classProps[key] === 'function' &&
-            !classProps[key].name) {
-          classProps[key] = Function('fn',
+        if (typeof staticProps[key] === 'function' &&
+            !staticProps[key].name) {
+          staticProps[key] = Function('fn',
             'return function ' + key + '_() {\n' +
             '  return fn.apply(this, arguments); }')
-            (classProps[key]);
+            (staticProps[key]);
         }
       }
     }
 
     // add methods and class methods if not found (in prototype chain)
-    if (ctor.extend !== BaseClass_extend) ctor.extend = BaseClass_extend;
-    if (ctor.create !== BaseClass_create) ctor.create = BaseClass_create;
-    if (ctor.new    !== BaseClass_create) ctor.new    = BaseClass_create;
+    if (ctor.extend !== Base_extend) ctor.extend = Base_extend;
+    if (ctor.create !== Base_create) ctor.create = Base_create;
+    if (ctor['new'] !== Base_create) ctor['new'] = Base_create;
 
-    if (!('constructors' in ctor))
-      Object.defineProperty(ctor, 'constructors',
-        Object.getOwnPropertyDescriptor(getProto(BaseClass), 'constructors'));
-
-    if (!('private' in proto)) proto.private = BaseClass_private;
-
-    if (!('constructors' in proto))
-      Object.defineProperty(proto, 'constructors',
-        Object.getOwnPropertyDescriptor(BaseClass.prototype, 'constructors'));
+    if (!('private' in proto)) proto.private = Base_addPrototype;
 
     // constructor.super_ -> for points super class
     setConst(ctor, 'super_', superCtor);
@@ -148,75 +138,54 @@
     return ctor;
   }
 
-  // BaseClass.new or BaseClass.create
-  function BaseClass_create() {
-    //assert(this === this.prototype.constructor,
-    //  'prototype of class/constructor is not class/constructor');
+  // Base.new or Base.create
+  function Base_create() {
     if (this.prototype instanceof Array) {
-      var obj = Array.apply(null, arguments); // [] or new Array
+      var obj = Array.apply(null, arguments);
       setProto(obj, this.prototype);
     }
     else if (this.prototype instanceof Error) {
-      var obj = Error.apply(null, arguments); // new Error
+      var obj = Error.apply(null, arguments);
       if (!obj.hasOwnProperty('message') &&
           typeof arguments[0] === 'string')
         obj.message = arguments[0];
       if (typeof obj.stack === 'string')
         obj.stack = obj.stack.split('\n').filter(function (str) {
-          return !/((base-class.js)|(BaseClass_create))/.test(str);
+          return !/((base-class.js)|(Base_create))/.test(str);
         }).join('\n');
       setProto(obj, this.prototype);
     }
     else
       var obj = Object.create(this.prototype);
-    //assert(obj.constructor === this, 'new object is not instance of class (constructor)');
     return this.apply(obj, arguments), obj;
-    //var res = this.apply(obj, arguments) || obj;
-    //assert(res.constructor === this, 'constructor returns other class object');
-    //assert(res === obj, 'constructor returns other object');
-    //return obj;
   }
 
   function assert(bool, msg) {
     if (!bool) throw new Error(msg);
   }
 
-  // BaseClass_private
-  function BaseClass_private(proto) {
+  // Base_addPrototype
+  function Base_addPrototype(proto) {
     setProto(proto, getProto(this));
     setProto(this, proto);
     return proto;
   }
 
-  var BaseClass = BaseClass_extend('BaseClass',
-                    {private: BaseClass_private,
-                     get constructors() {
-                        var ctors = [], obj = this;
-                        while (obj) {
-                          if (obj.hasOwnProperty('constructor'))
-                            ctors.push(obj.constructor);
-                          obj = getProto(obj); }
-                        return ctors; }},
-                    {extend:  BaseClass_extend,
-                     create:  BaseClass_create,
-                     new:     BaseClass_create,
-                     get constructors() {
-                        var ctors = [], ctor = this;
-                        while (ctor) {
-                          if (typeof ctor === 'function' &&
-                              ctor.hasOwnProperty('prototype'))
-                            ctors.push(ctor);
-                          ctor = getProto(ctor); }
-                        return ctors; }});
+  var Base = Base_extend('Base',
+                    {'private':     Base_addPrototype,
+                     addPrototype : Base_addPrototype},
+                    {extend:  Base_extend,
+                     create:  Base_create,
+                     'new':   Base_create});
 
 
   // exports
   if (typeof module !== 'undefined') {
-    module.exports = exports = BaseClass;
+    module.exports = exports = Base;
   }
   else {
     var g = Function('return this')();
-    g.BaseClass = BaseClass;
+    g.BaseClass = Base;
   }
 
 })();
