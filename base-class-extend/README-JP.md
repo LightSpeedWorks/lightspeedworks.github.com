@@ -39,15 +39,15 @@ http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js
 var BaseClass = require('base-class-extend');
 ```
 
-## メソッド: Class.extend(name, proto, classProps)
+## メソッド: Class.extend(name, proto, staticProps)
 
   基底クラスを継承した新しいクラス(コンストラクタ関数)を定義します。
 
 ### 形式
 
 ```js
-var YourClass = BaseClass.extend([name], [proto], [classProps]);
-var YourSubClass = YourClass.extend([name], [proto], [classProps]);
+var YourClass = BaseClass.extend([name], [proto], [staticProps]);
+var YourSubClass = YourClass.extend([name], [proto], [staticProps]);
 ```
 
 ### パラメータ
@@ -55,18 +55,18 @@ var YourSubClass = YourClass.extend([name], [proto], [classProps]);
   + **BaseClass**: 継承のための基底クラスまたはスーパークラス
   + **name**: 新しいクラス名の文字列 (省略可)
   + **proto**: 新しいクラスのプロトタイプオブジェクト (省略可)
-    + **new**, **ctor** または **constructor**: コンストラクタ関数 (省略可)
+    + **new** または **constructor**: コンストラクタ関数 (省略可)
     + **get** prop(): getter関数 (省略可)
     + **set** prop(value): setter関数 (省略可)
     + **any methods**: メソッドまたはメンバー関数 (省略可)
-  + **classProps**: クラス／静的プロパティのオブジェクト (省略可)
+  + **staticProps**: クラス／静的プロパティのオブジェクト (省略可)
     + **init**: 初期化関数 (省略可)
     + **get** prop(): getter関数 (省略可)
     + **set** prop(value): setter関数 (省略可)
     + **any methods**: 静的メソッドまたはクラス関数 (省略可)
 
-  ※**proto**を省略した場合**classProps**も省略する必要がある<br/>
-  ※**classProps**を指定したい場合、省略したい**proto**の部分は`{}`と指定すると良い
+  ※**proto**を省略した場合**staticProps**も省略する必要がある<br/>
+  ※**staticProps**を指定したい場合、省略したい**proto**の部分は`{}`と指定すると良い
 
 ### 返り値
 
@@ -135,7 +135,10 @@ var yourObj = YourClass();
 ### Objectクラスからの継承
 
 ```js
-Object.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Object);
+//  or
+// Object.extend = BaseClass.extend;
+
 var SimpleClass = Object.extend('SimpleClass');
 
 // または単純に
@@ -145,7 +148,10 @@ var SimpleClass = BaseClass.extend.call(Object, 'SimpleClass');
 ### Arrayクラスからの継承
 
 ```js
-Array.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Array);
+//  or
+// Array.extend = BaseClass.extend;
+
 var CustomArray = Array.extend('CustomArray');
 
 // または単純に
@@ -158,7 +164,10 @@ var ca = new CustomArray(1, 2, 3);
 ### Errorクラスからの継承
 
 ```js
-Error.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Error);
+//  or
+// Error.extend = BaseClass.extend;
+
 var CustomError = Error.extend('CustomError');
 
 // または単純に
@@ -171,7 +180,11 @@ var ce = new CustomError('message');
 
 ```js
 var EventEmitter = require('events').EventEmitter;
-EventEmitter.extend = BaseClass.extend;
+
+var BaseClass = require('base-class-extend').extendPrototype(EventEmitter);
+//  or
+// EventEmitter.extend = BaseClass.extend;
+
 var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
 
 // または単純に
@@ -181,7 +194,9 @@ var CustomEventEmitter = BaseClass.extend.call(EventEmitter, 'CustomEventEmitter
 ### 他の全てのクラスつまりコンストラクタ関数からの継承 ... Function
 
 ```js
-Function.prototype.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype();
+//  or
+// Function.prototype.extend = BaseClass.extend;
 
 var SimpleClass = Object.extend('SimpleClass');
 var CustomArray = Array.extend('CustomArray');
@@ -189,6 +204,57 @@ var CustomError = Error.extend('CustomError');
 
 var EventEmitter = require('events').EventEmitter;
 var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
+```
+
+## メソッド: this.addPrototype(proto)
+
+  プライベート変数または隠された変数を定義できます。<br/>
+  getter/setterやプライベート変数をアクセスできる通常のメソッドをサポートします。
+
+### 形式
+
+```js
+// 'new'メソッドまたは'constructor'関数の中に定義すること
+{
+  constructor: function () {
+    var private1;
+    this.addPrototype({
+      method1: function method1() {
+        console.log(private1); },
+      get prop1() { return private1; },
+      set prop1(val) { private1 = val; },
+    });
+  }
+}
+```
+
+### パラメータ
+
+  + **proto**: プライベート変数にアクセスできるメソッドが含まれるプロトタイプオブジェクト (必須)
+    + **get** prop(): getter関数 (省略可)
+    + **set** prop(value): setter関数 (省略可)
+    + **any methods**: メソッドまたはメンバー関数 (省略可)
+
+### 返り値
+
+  渡したプロトタイプオブジェクト。
+
+### 詳細
+
+  サンプル:
+
+```js
+var YourClass = BaseClass.extend({
+  new: function YourClass() {
+    var private1 = 123; // getter/setter経由のアクセス
+    var private2 = 'abc'; // getter経由のアクセス, setter無し
+    this.addPrototype({
+      get private1() { return private1; }, // getter
+      set private1(val) { private1 = val; }, // setter
+      get private2() { return private2; }, // getter
+    });
+  },
+});
 ```
 
 ## メソッド: this.private(proto)
@@ -200,13 +266,17 @@ var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
 
 ```js
 // 'new'メソッドまたは'constructor'関数の中に定義すること
-var private1;
-this.private({
-  method1: function method1() {
-    console.log(private1); },
-  get prop1() { return private1; },
-  set prop1(val) { private1 = val; },
-});
+{
+  constructor: function () {
+    var private1;
+    this.private({
+      method1: function method1() {
+        console.log(private1); },
+      get prop1() { return private1; },
+      set prop1(val) { private1 = val; },
+    });
+  }
+}
 ```
 
 ### パラメータ
@@ -237,59 +307,6 @@ var YourClass = BaseClass.extend({
   },
 });
 ```
-
-## プロパティ: this.constructor
-
-  コンストラクタ関数(クラス)を取得する。
-
-### 形式
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var o1 = new MyClass();
-console.log(o1.constructor === MyClass); // -> true
-```
-
-### 返り値
-
-  コンストラクタ関数(クラス)。
-
-## プロパティ: this.constructors
-
-  コンストラクタ関数(クラス)の配列を取得する。
-
-### 形式
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var o1 = new MyClass();
-var classes = o1.constructors;
-console.log(classes[0] === MyClass);   // -> true
-console.log(classes[1] === BaseClass); // -> true
-console.log(classes[2] === Object);    // -> true
-```
-
-## 返り値
-
-  コンストラクタ関数(クラス)の配列。
-
-## プロパティ: Class.constructors
-
-  コンストラクタ関数(クラス)の配列を取得する。
-
-### 形式
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var classes = MyClass.constructors;
-console.log(classes[0] === MyClass);   // -> true
-console.log(classes[1] === BaseClass); // -> true
-console.log(classes[2] === Object);    // -> true
-```
-
-## 返り値
-
-  コンストラクタ関数(クラス)の配列。
 
 # 使用例:
 
@@ -419,6 +436,10 @@ var Vector3D = Vector2D.extend({
 var v3 = new Vector3D(3, 4, 5);
 console.log('V3D(3, 4, 5):', v3.length);
 ```
+
+# 参考:
+
+## [get-constructors](https://www.npmjs.org/package/get-constructors) - npm
 
 # ライセンス:
 

@@ -38,15 +38,15 @@ http://lightspeedworks.github.io/base-class-extend/lib/base-class-extend.js
 var BaseClass = require('base-class-extend');
 ```
 
-## method: Class.extend(name, proto, classProps)
+## method: Class.extend(name, proto, staticProps)
 
   Define new class (constructor function) that inherited from Base Class.
 
 ### Format
 
 ```js
-var YourClass = BaseClass.extend([name], [proto], [classProps]);
-var YourSubClass = YourClass.extend([name], [proto], [classProps]);
+var YourClass = BaseClass.extend([name], [proto], [staticProps]);
+var YourSubClass = YourClass.extend([name], [proto], [staticProps]);
 ```
 
 ### Parameters
@@ -54,18 +54,18 @@ var YourSubClass = YourClass.extend([name], [proto], [classProps]);
   + **BaseClass**: Base class or Super class for inherits
   + **name**: string name of your class, optional
   + **proto**: the prototype object for your class, optional
-    + **new**, **ctor** or **constructor**: constructor function, optional
+    + **new** or **constructor**: constructor function, optional
     + **get** prop(): getter function, optional
     + **set** prop(value): setter function, optional
     + **any methods**: any method or member function, optional
-  + **classProps**: the object for class or static properties, optional
+  + **staticProps**: the object for class or static properties, optional
     + **init**: initialize function, optional
     + **get** prop(): getter function, optional
     + **set** prop(value): setter function, optional
     + **any methods**: any static method or class function, optional
 
-  You have to omit **classProps** also, if you omit **proto**.<br/>
-  You have to specify **proto** or `{}`, if you want to specify **classProps**.
+  You have to omit **staticProps** also, if you omit **proto**.<br/>
+  You have to specify **proto** or `{}`, if you want to specify **staticProps**.
 
 ### Returns
 
@@ -134,7 +134,10 @@ var yourObj = YourClass();
 ### inherits from Object class
 
 ```js
-Object.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Object);
+//  or
+// Object.extend = BaseClass.extend;
+
 var SimpleClass = Object.extend('SimpleClass');
 
 // or simply
@@ -144,7 +147,10 @@ var SimpleClass = BaseClass.extend.call(Object, 'SimpleClass');
 ### inherits from Array class
 
 ```js
-Array.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Array);
+//  or
+// Array.extend = BaseClass.extend;
+
 var CustomArray = Array.extend('CustomArray');
 
 // or simply
@@ -157,7 +163,10 @@ var ca = new CustomArray(1, 2, 3);
 ### inherits from Error class
 
 ```js
-Error.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype(Error);
+//  or
+// Error.extend = BaseClass.extend;
+
 var CustomError = Error.extend('CustomError');
 
 // or simply
@@ -170,7 +179,11 @@ var ce = new CustomError('message');
 
 ```js
 var EventEmitter = require('events').EventEmitter;
-EventEmitter.extend = BaseClass.extend;
+
+var BaseClass = require('base-class-extend').extendPrototype(EventEmitter);
+//  or
+// EventEmitter.extend = BaseClass.extend;
+
 var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
 
 // or simply
@@ -180,7 +193,9 @@ var CustomEventEmitter = BaseClass.extend.call(EventEmitter, 'CustomEventEmitter
 ### inherits from all other class or constructor ... Function
 
 ```js
-Function.prototype.extend = BaseClass.extend;
+var BaseClass = require('base-class-extend').extendPrototype();
+//  or
+// Function.prototype.extend = BaseClass.extend;
 
 var SimpleClass = Object.extend('SimpleClass');
 var CustomArray = Array.extend('CustomArray');
@@ -188,6 +203,57 @@ var CustomError = Error.extend('CustomError');
 
 var EventEmitter = require('events').EventEmitter;
 var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
+```
+
+## method: this.addPrototype(proto)
+
+  You can define private variables, hidden variables.<br/>
+  Also support getter/setter, and normal methods to access private variables.
+
+### Format
+
+```js
+// defined in 'new' method or 'constructor' function
+{
+  constructor: function () {
+    var private1;
+    this.addPrototype({
+      method1: function method1() {
+        console.log(private1); },
+      get prop1() { return private1; },
+      set prop1(val) { private1 = val; },
+    });
+  }
+}
+```
+
+### Parameters
+
+  + **proto**: the prototype object contains methods accessing private variables, required
+    + **get** prop(): getter function, optional
+    + **set** prop(value): setter function, optional
+    + **any methods**: any method or member function, optional
+
+### Returns
+
+  The prototype object you passed.
+
+### Details
+
+  Sample:
+
+```js
+var YourClass = BaseClass.extend({
+  new: function YourClass() {
+    var private1 = 123; // access via getter/setter
+    var private2 = 'abc'; // access via getter, no setter
+    this.addPrototype({
+      get private1() { return private1; }, // getter
+      set private1(val) { private1 = val; }, // setter
+      get private2() { return private2; }, // getter
+    });
+  },
+});
 ```
 
 ## method: this.private(proto)
@@ -199,13 +265,17 @@ var CustomEventEmitter = EventEmitter.extend('CustomEventEmitter');
 
 ```js
 // defined in 'new' method or 'constructor' function
-var private1;
-this.private({
-  method1: function method1() {
-    console.log(private1); },
-  get prop1() { return private1; },
-  set prop1(val) { private1 = val; },
-});
+{
+  constructor: function () {
+    var private1;
+    this.private({
+      method1: function method1() {
+        console.log(private1); },
+      get prop1() { return private1; },
+      set prop1(val) { private1 = val; },
+    });
+  }
+}
 ```
 
 ### Parameters
@@ -236,59 +306,6 @@ var YourClass = BaseClass.extend({
   },
 });
 ```
-
-## property: this.constructor
-
-  Get constructor function. (Class)
-
-### Format
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var o1 = new MyClass();
-console.log(o1.constructor === MyClass); // -> true
-```
-
-### Returns
-
-  The constructor function. (Class)
-
-## property: this.constructors
-
-  Get an array of constructor functions. (Classes)
-
-### Format
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var o1 = new MyClass();
-var classes = o1.constructors;
-console.log(classes[0] === MyClass);   // -> true
-console.log(classes[1] === BaseClass); // -> true
-console.log(classes[2] === Object);    // -> true
-```
-
-## Returns
-
-  An array of constructor functions. (Classes)
-
-## property: Class.constructors
-
-  Get an array of constructor functions.
-
-### Format
-
-```js
-var MyClass = BaseClass.extend('MyClass');
-var classes = MyClass.constructors;
-console.log(classes[0] === MyClass);   // -> true
-console.log(classes[1] === BaseClass); // -> true
-console.log(classes[2] === Object);    // -> true
-```
-
-## Returns
-
-  An array of constructor functions.
 
 # EXAMPLES:
 
@@ -418,6 +435,10 @@ var Vector3D = Vector2D.extend({
 var v3 = new Vector3D(3, 4, 5);
 console.log('V3D(3, 4, 5):', v3.length);
 ```
+
+# SEE ALSO:
+
+## [get-constructors](https://www.npmjs.org/package/get-constructors) - npm
 
 # LICENSE:
 

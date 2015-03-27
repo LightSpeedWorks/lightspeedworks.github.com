@@ -40,7 +40,7 @@
       Function.prototype.__defineGetter__('name', fname);
   }
 
-  // Base.extend
+  // Base.extend([name], [proto], [staticProps])
   // Usage:
   //    var SimpleClass =
   //        Base.extend(
@@ -129,7 +129,8 @@
     if (ctor.create !== Base_create) ctor.create = Base_create;
     if (ctor['new'] !== Base_create) ctor['new'] = Base_create;
 
-    if (!('private' in proto)) proto.private = Base_addPrototype;
+    if (!('private'      in proto)) proto['private']      = Base_addPrototype;
+    if (!('addPrototype' in proto)) proto['addPrototype'] = Base_addPrototype;
 
     // constructor.super_ -> for points super class
     setConst(ctor, 'super_', superCtor);
@@ -138,7 +139,7 @@
     return ctor;
   }
 
-  // Base.new or Base.create
+  // Base.new(...args) or Base.create(...args)
   function Base_create() {
     if (this.prototype instanceof Array) {
       var obj = Array.apply(null, arguments);
@@ -160,23 +161,27 @@
     return this.apply(obj, arguments), obj;
   }
 
-  function assert(bool, msg) {
-    if (!bool) throw new Error(msg);
-  }
-
-  // Base_addPrototype
+  // Base.addPrototype(proto)
   function Base_addPrototype(proto) {
     setProto(proto, getProto(this));
     setProto(this, proto);
     return proto;
   }
 
+  // Base.extendPrototype([ctor = Function])
+  function Base_extendPrototype(ctor) {
+    if (typeof ctor !== 'function') ctor = Function.prototype;
+    ctor.extend = Base_extend;
+    return this;
+  }
+
   var Base = Base_extend('Base',
-                    {'private':     Base_addPrototype,
-                     addPrototype : Base_addPrototype},
-                    {extend:  Base_extend,
-                     create:  Base_create,
-                     'new':   Base_create});
+                    {'private':       Base_addPrototype,
+                     addPrototype :   Base_addPrototype},
+                    {extend:          Base_extend,
+                     create:          Base_create,
+                     'new':           Base_create,
+                     extendPrototype: Base_extendPrototype});
 
 
   // exports
