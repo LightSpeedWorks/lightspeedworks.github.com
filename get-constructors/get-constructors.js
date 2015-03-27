@@ -47,6 +47,7 @@
       Object.defineProperty(ctor.prototype, 'constructors',
         {get: constructors, configurable: true});
     }
+    return this;
   };
 
 })();
