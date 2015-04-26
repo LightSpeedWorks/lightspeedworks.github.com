@@ -1,17 +1,11 @@
 // get-constructors.js
 
-(function () {
+this.constructors = function () {
   'use strict';
 
-  var g = Function('return this')(); // get window or global object
-
-  if (typeof module === 'object' && typeof module.exports === 'object')
-    module.exports = exports = constructors;
-  else
-    g.constructors = constructors;
-
+  // getProto
   var getProto = Object.getPrototypeOf ? Object.getPrototypeOf :
-    function getProto(obj) { return obj.__proto__ };
+    function getProto(obj) { return obj.__proto__; };
 
   // constructors
   function constructors(obj) {
@@ -24,18 +18,17 @@
 
     var classes = [];
 
-    if (obj instanceof Function) {
+    if (obj instanceof Function)
       // for Class/constructor
       for (; obj; obj = getProto(obj))
-        if (typeof obj === 'function')
+        typeof obj === 'function' &&
           classes.push(obj);
-    }
-    else {
+
+    else
       // for instance/object
       for (; obj; obj = getProto(obj))
-        if (obj.hasOwnProperty('constructor'))
+        obj.hasOwnProperty('constructor') &&
           classes.push(obj.constructor);
-    }
 
     return classes;
   }
@@ -43,11 +36,18 @@
   // extendPrototype
   constructors.extendPrototype = function extendPrototype(ctor) {
     ctor = ctor || Object;
-    if (!ctor.prototype.hasOwnProperty('constructors')) {
+
+    if (!ctor.prototype.hasOwnProperty('constructors'))
       Object.defineProperty(ctor.prototype, 'constructors',
         {get: constructors, configurable: true});
-    }
+
     return this;
   };
 
-})();
+  // exports
+  if (typeof module === 'object' && module.exports)
+    module.exports = exports = constructors;
+
+  return constructors;
+
+}();
