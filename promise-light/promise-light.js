@@ -10,6 +10,17 @@ this.PromiseLight = function () {
   var COLOR_ERROR  = typeof window !== 'undefined' ? '' : '\x1b[35m';
   var COLOR_NORMAL = typeof window !== 'undefined' ? '' : '\x1b[m';
 
+  // Function.prototype.bind for ie8
+  var slice = Array.prototype.slice;
+  if (!Function.prototype.bind)
+    Function.prototype.bind = function bind(ctx) {
+      var args = slice.call(arguments, 1);
+      var fn = this;
+      return function () {
+        return fn.apply(ctx, slice.call(args).concat(slice.call(arguments)));
+      };
+    };
+
   // nextTick(fn)
   var nextTick = typeof setImmediate === 'function' ? setImmediate :
     typeof process === 'object' && process && typeof process.nextTick === 'function' ? process.nextTick :
@@ -134,8 +145,7 @@ this.PromiseLight = function () {
     // checkUnhandledRejection
     function checkUnhandledRejection() {
       if (state === REJECTED && !handled) {
-        (console.error || console.log)
-          (COLOR_ERROR + 'Unhandled rejection ' +
+        console.error(COLOR_ERROR + 'Unhandled rejection ' +
             (value instanceof Error ? value.stack || value : value) +
             COLOR_NORMAL);
         // or throw value;
