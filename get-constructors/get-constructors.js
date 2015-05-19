@@ -38,15 +38,20 @@ this.constructors = function () {
     ctor = ctor || Object;
 
     if (!ctor.prototype.hasOwnProperty('constructors'))
-      Object.defineProperty(ctor.prototype, 'constructors',
-        {get: constructors, configurable: true});
+      if (ctor.prototype.hasOwnProperty('__defineGetter__'))
+        ctor.prototype.__defineGetter__('constructors', constructors);
+      else if (Object.defineProperty)
+        try {
+          Object.defineProperty(ctor.prototype, 'constructors',
+            {get: constructors, configurable: true});
+        } catch (e) {}
 
     return this;
   };
 
   // exports
   if (typeof module === 'object' && module.exports)
-    module.exports = exports = constructors;
+    module.exports = constructors;
 
   return constructors;
 
