@@ -53,6 +53,19 @@
     pr('window:', '[' + constructors(window).map(nm).join(', ') + ']');
     pr('document:', '[' + constructors(document).map(nm).join(', ') + ']');
 
+    function Klass() {}
+    try { Klass.name = 'Klass'; } catch (err) {}
+    function SubKlass() {}
+    try { SubKlass.name = 'SubKlass'; } catch (err) {}
+    SubKlass.prototype = new Klass();
+    SubKlass.prototype.constructor = SubKlass;
+    SubKlass.super_ = Klass;
+
+    pr('Klass:', '[' + constructors(Klass).map(nm).join(', ') + ']');
+    pr('SubKlass:', '[' + constructors(SubKlass).map(nm).join(', ') + ']');
+    pr('new Klass:', '[' + constructors(new Klass).map(nm).join(', ') + ']');
+    pr('new SubKlass:', '[' + constructors(new SubKlass).map(nm).join(', ') + ']');
+
     pr();
     constructors.extendPrototype();
     pr('constructors.extendPrototype();');
@@ -77,6 +90,11 @@
     pr('new Function:', '[' + new Function().constructors().map(nm).join(', ') + ']');
     pr('window:', '[' + (window.constructors && window.constructors().map(nm).join(', ')) + ']');
     pr('document:', '[' + (document.constructors && document.constructors().map(nm).join(', ')) + ']');
+
+    pr('Klass:', '[' + Klass.constructors().map(nm).join(', ') + ']');
+    pr('SubKlass:', '[' + SubKlass.constructors().map(nm).join(', ') + ']');
+    pr('new Klass:', '[' + new Klass().constructors().map(nm).join(', ') + ']');
+    pr('new SubKlass:', '[' + new SubKlass().constructors().map(nm).join(', ') + ']');
 
     pr();
     pr('end of test');

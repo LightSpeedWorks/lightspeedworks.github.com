@@ -37,67 +37,59 @@ var constructors = this.constructors || require('get-constructors'));
 
 # USAGE:
 
-## constructors
+## function: constructors(object or Class/constructor)
 
 ```js
 var constructors = require('get-constructors');
 
-var FuncProto = Function.prototype;
+constructors({});     // -> [Object]
+constructors(Object); // -> [Object, Function.prototype]
 
-constructors({}); // -> [Object]
-constructors(Object); // -> [Object, FuncProto]
-
-constructors([]); // -> [Array, Object]
-constructors(Array); // -> [Array, FuncProto]
+constructors([]);     // -> [Array, Object]
+constructors(Array);  // -> [Array, Function.prototype]
 
 function Klass() {}
 constructors(new Klass); // -> [Klass, Object]
-constructors(Klass); // -> [Klass, FuncProto]
-
-var setProto = Object.setPrototypeOf ? Object.setPrototypeOf :
-  function setProto(obj, proto) { obj.__proto__ = proto; };
+constructors(Klass);     // -> [Klass, Function.prototype]
 
 function SubKlass() {}
-SubKlass.prototype = Object.create(Klass.prototype, {
-  constructor: { value: SubKlass,
-    writable: true, configurable: true }});
-setProto(SubKlass, Klass);
+SubKlass.prototype = new Klass();
+SubKlass.prototype.constructor = SubKlass;
+SubKlass.super_ = Klass;
 
 constructors(new SubKlass); // -> [SubKlass, Klass, Object]
-constructors(SubKlass); // -> [SubKlass, Klass, FuncProto]
+constructors(SubKlass);     // -> [SubKlass, Klass, Function.prototype]
 ```
 
-## constructors.extendPrototype([ctor = Object])
+## method: constructors.extendPrototype([ctor = Object])
+
+  Extends prototype method `constructors` and returns `constructors`.
+
+### Format
 
 ```js
 var constructors = require('get-constructors').extendPrototype();
 
-var FuncProto = Function.prototype;
+({}).constructors()   // -> [Object]
+Object.constructors() // -> [Object, Function.prototype]
 
-({}).constructors() // -> [Object]
-Object.constructors() // -> [Object, FuncProto]
-
-[].constructors() // -> [Array, Object]
-Array.constructors() // -> [Array, FuncProto]
+[].constructors()     // -> [Array, Object]
+Array.constructors()  // -> [Array, Function.prototype]
 
 function Klass() {}
 (new Klass).constructors() // -> [Klass, Object]
-Klass.constructors() // -> [Klass, FuncProto]
-
-var setProto = Object.setPrototypeOf ? Object.setPrototypeOf :
-  function setProto(obj, proto) { obj.__proto__ = proto; };
+Klass.constructors()       // -> [Klass, Function.prototype]
 
 function SubKlass() {}
-SubKlass.prototype = Object.create(Klass.prototype, {
-  constructor: { value: SubKlass,
-    writable: true, configurable: true }});
-setProto(SubKlass, Klass);
+SubKlass.prototype = new Klass();
+SubKlass.prototype.constructor = SubKlass;
+SubKlass.super_ = Klass;
 
 (new SubKlass).constructors() // -> [SubKlass, Klass, Object]
-SubKlass.constructors() // -> [SubKlass, Klass, FuncProto]
+SubKlass.constructors()       // -> [SubKlass, Klass, Function.prototype]
 ```
 
-## property: this.constructors()
+## method: this.constructors()
 
   Get an array of constructor functions (classes).
   (after: constructors.extendPrototype())
@@ -105,8 +97,17 @@ SubKlass.constructors() // -> [SubKlass, Klass, FuncProto]
 ### Format
 
 ```js
-var MyClass = BaseClass.extend('MyClass');
+var constructors = require('get-constructors').extendPrototype();
+
+function BaseClass() {}
+function MyClass() {}
+MyClass.prototype = new BaseClass()
+MyClass.prototype.constructor = MyClass;
+MyClass.super_ = BaseClass;
+
 var o1 = new MyClass();
+console.log(o1.constructor === MyClass);   // -> true
+
 var classes = o1.constructors();
 console.log(classes[0] === MyClass);   // -> true
 console.log(classes[1] === BaseClass); // -> true
@@ -117,7 +118,7 @@ console.log(classes[2] === Object);    // -> true
 
   An array of constructor functions (classes).
 
-## property: Class.constructors()
+## method: Class.constructors()
 
   Get an array of constructor functions (classes).
   (after: constructors.extendPrototype())
@@ -125,17 +126,27 @@ console.log(classes[2] === Object);    // -> true
 ### Format
 
 ```js
-var MyClass = BaseClass.extend('MyClass');
+var constructors = require('get-constructors').extendPrototype();
+
+function BaseClass() {}
+function MyClass() {}
+MyClass.prototype = new BaseClass()
+MyClass.prototype.constructor = MyClass;
+MyClass.super_ = BaseClass;
+
 var classes = MyClass.constructors();
 console.log(classes[0] === MyClass);   // -> true
 console.log(classes[1] === BaseClass); // -> true
-console.log(classes[2] === Object);    // -> true
+console.log(classes[2] === Function.prototype); // -> true
 ```
 
 ## Returns
 
   An array of constructor functions (classes).
 
+# SEE ALSO:
+
+## [base-class-extend](https://www.npmjs.org/package/base-class-extend) - npm
 
 # LICENSE:
 
