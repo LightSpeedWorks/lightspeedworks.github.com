@@ -1,4 +1,4 @@
-[date-time-string](https://www.npmjs.org/package/date-time-string) - npm
+[date-time-string](https://www.npmjs.com/package/date-time-string) - npm
 ====
 
 # INSTALL:
@@ -9,10 +9,10 @@ $ npm install date-time-string
 
 or
 
-http://lightspeedworks.github.io/date-time-string/lib/date-time.js
+http://lightspeedworks.github.io/date-time-string/date-time-string.js
 
 ```html
-<script src="http://lightspeedworks.github.io/date-time-string/lib/date-time.js"></script>
+<script src="http://lightspeedworks.github.io/date-time-string/date-time-string.js"></script>
 ```
 
 # USAGE:
