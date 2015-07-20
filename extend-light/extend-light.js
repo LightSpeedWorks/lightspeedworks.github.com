@@ -10,21 +10,30 @@ this['extend-light'] = function () {
     return dst;
   }
 
-  function extend(props, statics) {
+  var setProto = Object.setPrototypeOf ||
+      ({}.__proto__ = {proto:1}).proto &&
+      function setProto(obj, proto) { obj.__proto__ = proto; } || null;
+
+  function extend(proto, statics) {
     'use strict';
-    props = props || {};
-    var _super = typeof this === 'function' ? this : undefined;
+    proto = proto || {};
+    var super_ = typeof this === 'function' ? this : undefined;
 
-    var ctor = props.hasOwnProperty('constructor') ? props.constructor :
-      _super ? function () { _super.apply(this, arguments); } : function () {};
+    var ctor = proto.hasOwnProperty('constructor') ? proto.constructor :
+      super_ ? function () {
+        if (!(this instanceof ctor)) return ctor.apply(new $ctor(), arguments);
+        super_.apply(this, arguments); return this; } :
+      function () { if (!(this instanceof ctor)) return new ctor(); };
+ 
+    function $super() { this.constructor = ctor; }
+    if (super_) $super.prototype = super_.prototype;
+    function $ctor() {}
+    $ctor.prototype = ctor.prototype = merge(new $super(), proto);
+    delete ctor.prototype.statics;
 
-    function __() { this.constructor = ctor; }
-    if (_super) __.prototype = _super.prototype;
-    ctor.prototype = merge(new __(), props);
-
-    if (_super && ctor.__proto__) ctor.__proto__ = _super;
-    return merge(ctor, props.statics, statics,
-      _super ? {super_: _super} : undefined, _super, {extend: extend});
+    if (super_ && setProto) setProto(ctor, super_);
+    return merge(ctor, proto.statics, statics,
+      super_ ? {super_: super_} : undefined, super_, {extend: extend});
   }
 
   if (typeof module === 'object' && module && module.exports)
