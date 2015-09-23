@@ -33,7 +33,13 @@ this['extend-light'] = function () {
 
     if (super_ && setProto) setProto(ctor, super_);
     return merge(ctor, proto.statics, statics,
-      super_ ? {super_: super_} : undefined, super_, {extend: extend});
+      super_ ? {super_: super_} : undefined, super_, {extend: extend, create: create});
+  }
+
+  function create() {
+    function $ctor() {}
+    $ctor.prototype = this.prototype;
+    return this.apply(new $ctor(), arguments);
   }
 
   if (typeof module === 'object' && module && module.exports)
