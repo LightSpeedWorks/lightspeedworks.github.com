@@ -10,6 +10,8 @@ this.PromiseLight = function () {
   var COLOR_ERROR  = typeof window !== 'undefined' ? '' : '\x1b[35m';
   var COLOR_NORMAL = typeof window !== 'undefined' ? '' : '\x1b[m';
 
+  var slice = [].slice;
+
   // Queue
   function Queue() {
     this.tail = this.head = null;
@@ -28,7 +30,8 @@ this.PromiseLight = function () {
     return x;
   };
 
-  // nextTick(fn)
+
+  // nextTickDo(fn)
   var nextTickDo = typeof setImmediate === 'function' ? setImmediate :
     typeof process === 'object' && process && typeof process.nextTick === 'function' ? process.nextTick :
     function nextTick(fn) { setTimeout(fn, 0); };
@@ -36,18 +39,21 @@ this.PromiseLight = function () {
   var tasks = new Queue();
 
   var nextTickProgress = false;
-  // nextTick(fn)
-  function nextTick(fn) {
-    tasks.push(fn);
+
+  // nextTick(fn, ctx)
+  function nextTick(fn, ctx) {
+    if (typeof fn !== 'function')
+      throw new TypeError('fn must be a function');
+
+    tasks.push(arguments);
     if (nextTickProgress) return;
 
     nextTickProgress = true;
 
     nextTickDo(function () {
-      var fn;
-
-      while (fn = tasks.shift())
-        fn();
+      var args;
+      while (args = tasks.shift())
+        args[0].call(args[1]);
 
       nextTickProgress = false;
     });
@@ -60,12 +66,12 @@ this.PromiseLight = function () {
 
   // isIterator(iter)
   function isIterator(iter) {
-    return iter && (typeof iter.next === 'function' || isIterable(iter));
+    return !!iter && (typeof iter.next === 'function' || isIterable(iter));
   }
 
   // isIterable(iter)
   function isIterable(iter) {
-    return iter && typeof Symbol === 'function' && Symbol &&
+    return !!iter && typeof Symbol === 'function' && Symbol &&
            Symbol.iterator && typeof iter[Symbol.iterator] === 'function';
   }
 
@@ -114,29 +120,27 @@ this.PromiseLight = function () {
   function PROMISE_THEN() {}
 
   // PromiseLight(setup(resolve, reject))
-  function PromiseLight(setup) {
+  function PromiseLight(setup, val, rej, $that) {
     var $this = this;
     this.$callbacks = new Queue();
     this.$handled = false;
-    var $fire = function () { $this.$fire(); };
 
     if (setup === PROMISE_RESOLVE) {
       this.$state = STATE_RESOLVED;
-      this.$result = arguments[1];
+      this.$result = val;
     }
     else if (setup === PROMISE_REJECT) {
       this.$state = STATE_REJECTED;
-      this.$result = arguments[1];
+      this.$result = val;
     }
     else {
       this.$state = STATE_UNRESOLVED;
       this.$result = undefined;
 
       if (setup === PROMISE_THEN) {
-        var $that = arguments[3];
-        $that.$callbacks.push([arguments[1], arguments[2], resolve, reject]);
+        $that.$callbacks.push([val, rej, resolve, reject]);
         if ($that.$state !== STATE_UNRESOLVED)
-          nextTick(function () { $that.$fire(); });
+          nextTick($fire, $that);
       }
       else if (setup && typeof setup === 'function') {
         try {
@@ -147,8 +151,8 @@ this.PromiseLight = function () {
       }
       else {
         // no setup, public promise
-        setConst(this, 'resolve', resolve);
-        setConst(this, 'reject',  reject);
+        setConst(this, '$resolve', resolve);
+        setConst(this, '$reject',  reject);
       }
 
     }
@@ -156,13 +160,13 @@ this.PromiseLight = function () {
     // resolve(val)
     function resolve(val) {
       if ($this.$state === STATE_UNRESOLVED)
-        $this.$state = STATE_RESOLVED, $this.$result = val, nextTick($fire);
+        $this.$state = STATE_RESOLVED, $this.$result = val, nextTick($fire, $this);
     }
 
     // reject(err)
     function reject(err) {
       if ($this.$state === STATE_UNRESOLVED)
-        $this.$state = STATE_REJECTED, $this.$result = err, nextTick($fire);
+        $this.$state = STATE_REJECTED, $this.$result = err, nextTick($fire, $this);
     }
 
   } // PromiseLight
@@ -186,36 +190,41 @@ this.PromiseLight = function () {
   }); // catch
 
   // $fire
-  setValue(PromiseLight.prototype, '$fire', function $fire() {
+  setValue(PromiseLight.prototype, '$fire', $fire);
+  function $fire() {
     var $this = this;
+    var $state = this.$state;
+    var $result = this.$result;
+    var $callbacks = $this.$callbacks;
     var elem;
-    while (elem = $this.$callbacks.shift()) {
+    while (elem = $callbacks.shift()) {
       (function (elem) {
         $this.$handled = true;
         var resolve = elem[2], reject = elem[3];
-        var completed = elem[$this.$state];
+        var completed = elem[$state];
         function complete(val) {
           resolve(completed.call($this, val)); }
         try {
-          if ($this.$state === STATE_RESOLVED) {
-            if (!completed) return resolve($this.$result);
-            if ($this.$result instanceof PromiseLight || isPromise($this.$result))
-              return $this.$result.then(complete, reject);
+          if ($state === STATE_RESOLVED) {
+            if (!completed) return resolve($result);
+            if ($result instanceof PromiseLight || isPromise($result))
+              return $result.then(complete, reject);
           }
-          else { // $this.$state === STATE_REJECTED
-            if (!completed) return reject($this.$result);
+          else { // $state === STATE_REJECTED
+            if (!completed) return reject($result);
           }
-          complete($this.$result);
+          complete($result);
         } catch (err) {
           reject(err);
         }
       })(elem);
-    } // while $this.$callbacks.shift()
-    nextTick(function () { $this.$checkUnhandledRejection(); });
-  }); // $fire
+    } // while $callbacks.shift()
+    nextTick($checkUnhandledRejection, $this);
+  } // $fire
 
   // $checkUnhandledRejection
-  setValue(PromiseLight.prototype, '$checkUnhandledRejection', function $checkUnhandledRejection() {
+  setValue(PromiseLight.prototype, '$checkUnhandledRejection', $checkUnhandledRejection);
+  function $checkUnhandledRejection() {
     if (this.$state === STATE_REJECTED && !this.$handled) {
       console.error(COLOR_ERROR + 'Unhandled rejection ' +
           (this.$result instanceof Error ? this.$result.stack || this.$result : this.$result) +
@@ -223,7 +232,7 @@ this.PromiseLight = function () {
       // or throw this.$result;
       // or process.emit...
     }
-  }); // $checkUnhandledRejection
+  } // $checkUnhandledRejection
 
   // PromiseLight.resolve(val)
   setValue(PromiseLight, 'resolve', function resolve(val) {
@@ -246,8 +255,10 @@ this.PromiseLight = function () {
         promises.forEach(function (p, i) {
           function complete(val) {
             res[i] = val; if (--n === 0) resolve(res); }
+          function error(err) {
+            if (n > 0) reject(err); n = 0; }
           if (p instanceof PromiseLight || isPromise(p))
-            return p.then(complete, reject);
+            return p.then(complete, error);
           complete(p);
         }); // promises.forEach
       }
@@ -276,7 +287,7 @@ this.PromiseLight = function () {
   // PromiseLight.defer()
   setValue(PromiseLight, 'defer', function defer() {
     var p = new PromiseLight();
-    return {promise: p, resolve: p.resolve, reject: p.reject};
+    return {promise: p, resolve: p.$resolve, reject: p.$reject};
   });
 
   if (typeof module === 'object' && module.exports)
