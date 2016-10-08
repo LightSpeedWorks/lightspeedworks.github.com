@@ -1,23 +1,54 @@
-// promise-thunk.js
+// PromiseThunk
 
-this.PromiseThunk = function () {
+void function (global, PromiseOrg) {
 	'use strict';
-
-	var STATE_UNRESOLVED = -1;
-	var STATE_REJECTED = 0;
-	var STATE_RESOLVED = 1;
-	var STATE_THUNK = 2;
-
-	var ARGS_ERR = 0;
-	var ARGS_VAL = 1;
-
-	var COLOR_OK     = typeof window !== 'undefined' ? '' : '\x1b[32m';
-	var COLOR_ERROR  = typeof window !== 'undefined' ? '' : '\x1b[35m';
-	var COLOR_NORMAL = typeof window !== 'undefined' ? '' : '\x1b[m';
 
 	var slice = [].slice;
 
-	// defProp
+	var hasConsole = typeof console === 'object' && console !== null;
+	var hasConsoleWarn  = hasConsole && typeof console.warn  === 'function';
+	var hasConsoleError = hasConsole && typeof console.error === 'function';
+
+	var COLOR_ERROR  = typeof window !== 'undefined' ? '' : '\x1b[35m';
+	var COLOR_NORMAL = typeof window !== 'undefined' ? '' : '\x1b[m';
+
+	// Object.keys for ie8
+	if (!Object.keys)
+		Object.keys = function keys(obj) {
+			var props = [];
+			for (var prop in obj)
+				if (obj.hasOwnProperty(prop))
+					props.push(prop);
+			return props;
+		},
+		hasConsoleWarn && console.warn('Undefined: Object.keys');
+
+	// Object.getOwnPropertyNames for ie8
+	if (!Object.getOwnPropertyNames)
+		Object.getOwnPropertyNames = Object.keys,
+		hasConsoleWarn && console.warn('Undefined: Object.getOwnPropertyNames');
+
+	// Array.prototype.reduce for ie8
+	if (!Array.prototype.reduce)
+		Array.prototype.reduce = function reduce(fn, val) {
+			var i = 0;
+			if (arguments.length <= 1) val = this[i++];
+			for (var n = this.length; i < n; ++i)
+				val = fn(val, this[i], i, this);
+			return val;
+		},
+		hasConsoleWarn && console.warn('Undefined: Array.prototype.reduce');
+
+	var COLORS = {red: '31', green: '32', purple: '35', cyan: '36', yellow: '33'};
+	var colors = Object.keys(COLORS).reduce(function (obj, k) {
+		obj[k] = typeof window === 'object' ? function (x) { return x; } :
+			function (x) { return '\x1b[' + COLORS[k] + 'm' + x + '\x1b[m'; };
+		return obj;
+	}, {});
+
+	function errmsg(err) { return err.stack || err; }
+
+	// defProp(obj, prop, propDesc)
 	var defProp = function (obj) {
 		if (!Object.defineProperty) return null;
 		try {
@@ -29,298 +60,486 @@ this.PromiseThunk = function () {
 	// setConst(obj, prop, val)
 	var setConst = defProp ?
 		function setConst(obj, prop, val) {
-			defProp(obj, prop, {value: val}); return val; } :
-		function setConst(obj, prop, val) { return obj[prop] = val; };
+			defProp(obj, prop, {value: val}); } :
+		function setConst(obj, prop, val) { obj[prop] = val; };
 
 	// setValue(obj, prop, val)
 	var setValue = defProp ?
 		function setValue(obj, prop, val) {
 			defProp(obj, prop, {value: val,
-				writable: true, configurable: true}); return val; } :
-		function setValue(obj, prop, val) { return obj[prop] = val; };
+				writable: true, configurable: true}); } :
+		function setValue(obj, prop, val) { obj[prop] = val; };
 
 	// getProto(obj)
-	var getProto = Object.getPrototypeOf || {}.__proto__ ?
-		function getProto(obj) { return obj.__proto__; } : null;
+	var getProto = Object.getPrototypeOf ||
+		function getProto(obj) { return obj.__proto__; };
 
 	// setProto(obj, proto)
-	var setProto = Object.setPrototypeOf || {}.__proto__ ?
-		function setProto(obj, proto) { obj.__proto__ = proto; } : null;
+	var setProto = Object.setPrototypeOf ||
+		function (obj, proto) { obj.__proto__ = proto; };
 
-	// Queue
-	function Queue() {
-		this.tail = this.head = null;
+	// BaseClass.extend(proto, statics)
+	function extend(proto, statics) {
+		var ctor = proto.constructor;
+		function super_() { setValue(this, 'constructor', ctor); }
+		if (typeof this === 'function')
+			super_.prototype = this.prototype,
+			ctor.prototype = new super_();
+		for (var p in proto)
+			if (proto.hasOwnProperty(p) &&
+				!ctor.prototype.hasOwnProperty(p))
+				setValue(ctor.prototype, p, proto[p]);
+		for (var p in statics)
+			if (statics.hasOwnProperty(p))
+				setValue(ctor, p, statics[p]);
+		return ctor;
 	}
-	// Queue#push(x)
-	setValue(Queue.prototype, 'push', function push(x) {
-		if (this.tail)
-			this.tail = this.tail[1] = [x, null];
-		else
-			this.tail = this.head = [x, null];
-		return this;
-	});
-	// Queue#shift()
-	setValue(Queue.prototype, 'shift', function shift() {
-		if (!this.head) return null;
-		var x = this.head[0];
-		this.head = this.head[1];
-		if (!this.head) this.tail = null;
-		return x;
-	});
 
 	// nextTickDo(fn)
-	var nextTickDo = typeof setImmediate === 'function' ? setImmediate :
-		typeof process === 'object' && process && typeof process.nextTick === 'function' ? process.nextTick :
-		function nextTick(fn) { setTimeout(fn, 0); };
+	var nextTickDo =
+		typeof process === 'object' && process &&
+		typeof process.nextTick === 'function' ? process.nextTick :
+		typeof setImmediate === 'function' ? setImmediate :
+		function nextTickDo(fn) { setTimeout(fn, 0); };
 
-	var tasksHighPrio = new Queue();
-	var tasksLowPrio = new Queue();
+	// nextExec(ctx, fn)
+	var nextExec = function () {
+		// tasks {head, tail}
+		var tasks = {head:undefined, tail:undefined};
+		var progress = false;
 
-	var nextTickProgress = false;
+		// nextExec(ctx, fn)
+		function nextExec(ctx, fn) {
+			var task = {ctx:ctx, fn:fn, chain:undefined};
+			tasks.tail = tasks.tail ? (tasks.tail.chain = task) : (tasks.head = task);
 
-	// nextTick(ctx, fn, fnLow)
-	function nextTick(ctx, fn, fnLow) {
-		if (typeof fn === 'function')
-			tasksHighPrio.push({ctx:ctx, fn:fn});
+			if (progress) return;
+			progress = true;
+			nextTickDo(nextTickExec);
+		}
 
-		if (typeof fnLow === 'function')
-			tasksLowPrio.push({ctx:ctx, fn:fnLow});
-
-		if (nextTickProgress) return;
-
-		nextTickProgress = true;
-
-		nextTickDo(function () {
+		function nextTickExec() {
 			var task;
+			while (task = tasks.head) {
+				tasks.head = task.chain;
+				task.chain = undefined;
+				if (!tasks.head) tasks.tail = undefined;
 
-			for (;;) {
-				while (task = tasksHighPrio.shift())
-					task.fn.call(task.ctx);
-
-				if (task = tasksLowPrio.shift())
-					task.fn.call(task.ctx);
-				else break;
+				var fn = task.fn;
+				fn(task.ctx);
 			}
+			progress = false;
+		}
 
-			nextTickProgress = false;
-		});
+		return nextExec;
+	}(); // nextExec
+
+
+	var PROMISE_FLAG_RESOLVED = 1;
+	var PROMISE_FLAG_REJECTED = 2;
+	var PROMISE_FLAG_SOLVED = PROMISE_FLAG_RESOLVED | PROMISE_FLAG_REJECTED;
+	var PROMISE_FLAG_HANDLED = 4;
+	var PROMISE_FLAG_UNHANDLED_REJECTION = 8;
+	var PROMISE_FLAG_UNHANDLED = PROMISE_FLAG_HANDLED | PROMISE_FLAG_UNHANDLED_REJECTION;
+
+
+	// new Promise(function setup(resolve, reject) {})
+	var Promise = extend({
+		constructor: function Promise(setup) {
+			if (!(this instanceof Promise))
+				throw new TypeError('new Promise!!!');
+
+			thunk.constructor = Promise;
+			thunk.then        = then;
+			thunk['catch']    = caught;
+			thunk.toString    = toString;
+			thunk.toJSON      = toJSON;
+
+			thunk.flag = 0;
+			thunk.result = undefined;
+			thunk.tail = thunk.head = undefined;
+
+			try { setup(resolve, reject); }
+			catch (err) { reject(err); }
+
+			return thunk;
+
+			function thunk(cb)    { return $$thunk(thunk, cb); }
+			function resolve(val) { return $$resolve(thunk, val); }
+			function reject(err)  { return $$reject(thunk, err); }
+		}, // Promise
+
+		then: then,
+		'catch': caught,
+		toString: toString,
+		toJSON: toJSON
+	},
+
+	{ // statics
+		all: all,
+		race: race,
+		defer: defer,
+		resolve: resolve,
+		reject: reject,
+		accept: resolve,
+		convert: resolve,
+		wrap: promisify,
+		promisify: promisify,
+		thunkify: thunkify,
+		promisifyAll: promisifyAll,
+		thunkifyAll: thunkifyAll,
+		isIterable: isIterable,
+		isIterator: isIterator,
+		isPromise: isPromise,
+		makeArrayFromIterator: makeArrayFromIterator
+	}); // Promise
+
+	// new PromiseResolved(val)
+	function PromiseResolved(val) {
+		thunk.constructor = Promise;
+		thunk.then        = then;
+		thunk['catch']    = caught;
+		thunk.toString    = toString;
+		thunk.toJSON      = toJSON;
+
+		thunk.flag = PROMISE_FLAG_RESOLVED;
+		thunk.result = val;
+		thunk.tail = thunk.head = undefined;
+		return thunk;
+
+		function thunk(cb)    { return $$thunk(thunk, cb); }
+	} // PromiseResolved
+	PromiseResolved.prototype = Promise.prototype;
+
+	// new PromiseRejected(err)
+	function PromiseRejected(err) {
+		thunk.constructor = Promise;
+		thunk.then        = then;
+		thunk['catch']    = caught;
+		thunk.toString    = toString;
+		thunk.toJSON      = toJSON;
+
+		thunk.flag = PROMISE_FLAG_REJECTED;
+		thunk.result = err;
+		thunk.tail = thunk.head = undefined;
+		nextExec(thunk, $$fire);
+		return thunk;
+
+		function thunk(cb)    { return $$thunk(thunk, cb); }
+	} // PromiseRejected
+	PromiseRejected.prototype = Promise.prototype;
+
+	// new PromiseNext(parent, reject, resolve)
+	function PromiseNext(parent, reject, resolve, cb) {
+		thunk.constructor = Promise;
+		thunk.then        = then;
+		thunk['catch']    = caught;
+		thunk.toString    = toString;
+		thunk.toJSON      = toJSON;
+
+		thunk.flag = 0;
+		thunk.result = undefined;
+		thunk.tail = thunk.head = undefined;
+
+		var bomb = {rej:reject, res:resolve, cb:cb, thunk:thunk, chain:undefined};
+		parent.tail = parent.tail ? (parent.tail.chain = bomb) : (parent.head = bomb);
+		if (parent.flag & PROMISE_FLAG_SOLVED) nextExec(parent, $$fire);
+
+		return thunk;
+
+		function thunk(cb)    { return $$thunk(thunk, cb); }
+	} // PromiseNext
+	PromiseNext.prototype = Promise.prototype;
+
+	// new PromiseDefer()
+	function PromiseDefer() {
+		thunk.constructor = Promise;
+		thunk.then        = then;
+		thunk['catch']    = caught;
+		thunk.toString    = toString;
+		thunk.toJSON      = toJSON;
+
+		thunk.flag = 0;
+		thunk.result = undefined;
+		thunk.tail = thunk.head = undefined;
+		return {promise:thunk, resolve:resolve, reject:reject};
+
+		function thunk(cb)    { return $$thunk(thunk, cb); }
+		function resolve(val) { return $$resolve(thunk, val); }
+		function reject(err)  { return $$reject(thunk, err); }
+	} // PromiseDefer
+	PromiseDefer.prototype = Promise.prototype;
+
+	// new PromiseConvert(thenable)
+	function PromiseConvert(thenable) {
+		thunk.constructor = Promise;
+		thunk.then        = then;
+		thunk['catch']    = caught;
+		thunk.toString    = toString;
+		thunk.toJSON      = toJSON;
+
+		thunk.flag = 0;
+		thunk.result = undefined;
+		thunk.tail = thunk.head = undefined;
+
+		thenable.then(resolve, reject);
+
+		return thunk;
+
+		function thunk(cb)    { return $$thunk(thunk, cb); }
+		function resolve(val) { return $$resolve(thunk, val); }
+		function reject(err)  { return $$reject(thunk, err); }
+	} // PromiseConvert
+	PromiseConvert.prototype = Promise.prototype;
+
+	// Promise.resolve(val)
+	function resolve(val) {
+		if (isPromise(val)) return new PromiseConvert(val);
+		return new PromiseResolved(val);
 	}
 
-	function PROMISE_RESOLVE() {}
-	function PROMISE_REJECT() {}
-	function PROMISE_THEN() {}
-
-	// PromiseThunk(setup(resolve, reject))
-	function PromiseThunk(setup, val) {
-		if (setup && typeof setup.then === 'function')
-			return $$convert(setup);
-
-		$this.$callbacks = new Queue();
-		$this.$state = STATE_UNRESOLVED;
-		$this.$args = undefined;
-		$this.$handled = false;
-
-		if (setProto)
-			setProto($this, PromiseThunk.prototype);
-		else {
-			if ($this.then     !== $$then)
-					$this.then     =   $$then;
-			if ($this['catch'] !== $$catch)
-					$this['catch'] =   $$catch;
-			if ($this.toString !== $$toString)
-					$this.toString =   $$toString;
-		}
-
-		if (typeof setup === 'function') {
-			if (setup === PROMISE_RESOLVE)
-				$$resolve.call($this, val);
-			else if (setup === PROMISE_REJECT)
-				$$reject.call($this, val);
-			else {
-				// setup(resolve, reject)
-				try {
-					setup.call($this,
-						function resolve(v) { return $$resolve.call($this, v); },
-						function reject(e)  { return $$reject.call($this, e); });
-				} catch (err) {
-					$$reject.call($this, err);
-				}
-			}
-		} // PromiseThunk
-
-		// $this(cb) === thunk
-		function $this(cb) {
-			if (typeof cb !== 'function')
-				cb = function () {};
-
-			var p = PromiseThunk();
-			$this.$callbacks.push([undefined, undefined,
-				function (err, val) {
-					try {
-						$$resolve.call(p, err instanceof Error || arguments.length === cb.length ? cb.apply(this, arguments) :
-							// normal node style callback
-							cb.length === 2 ? cb.call(this, err, val) :
-							// fs.exists like callback, arguments[0] is value
-							cb.length === 1 ? cb.call(this, val) :
-							// unknown callback
-							cb.length === 0 ? cb.apply(this, arguments) :
-							// child_process.exec like callback
-							val instanceof Array ? cb.apply(this, [err].concat(val)) :
-							cb.apply(this, arguments));
-					} catch (e) {
-						if (!err) return $$reject.call(p, e);
-						console.error(COLOR_ERROR + 'Unhandled callback error: ' + err2str(e) + COLOR_NORMAL);
-						$$reject.call(p, err);
-					}
-				}
-			]);
-			nextTick($this, $$fire);
-			return p;
-		}
-
-		return $this;
+	// Promise.reject(err)
+	function reject(err) {
+		return new PromiseRejected(err);
 	}
 
-	// $$callback(err, val) or $callback(...$args)
-	function $$callback() {
-		if (this.$args) {
-			var err = arguments[ARGS_ERR];
-			if (err) {
-				console.info(COLOR_OK + this + COLOR_NORMAL);
-				console.error(COLOR_ERROR + 'Unhandled 2nd rejection ' + err2str(err) + COLOR_NORMAL);
-			}
-			return; // already fired
-		}
-		this.$args = arguments;
-		this.$state = arguments[ARGS_ERR] ? STATE_REJECTED : STATE_RESOLVED;
-		nextTick(this, $$fire);
+	// Promise.defer()
+	function defer() {
+		return new PromiseDefer();
 	}
 
-	// $$resolve(val)
-	function $$resolve(val) {
-		if (this.$args) return; // already resolved
-		var $this = this;
+	// Promise#toString()
+	function toString() {
+		return colors.cyan('PromiseThunk { ') + (
+			this.flag & PROMISE_FLAG_RESOLVED ? colors.green(this.result) :
+			this.flag & PROMISE_FLAG_REJECTED ? colors.red('<rejected> [' + this.result + ']') :
+			colors.yellow('<pending>')) + colors.cyan(' }');
+	}
 
-		// val is promise?
-		if (isPromise(val)) {
-			val.then(
-				function (v) { $$callback.call($this, null, v); },
-				function (e) { $$callback.call($this, e); });
-			return;
-		}
+	// Promise#toJSON()
+	function toJSON() {
+		var obj = {'class': 'PromiseThunk'};
+		obj.state = ['pending', 'resolved', 'rejected'][this.flag & PROMISE_FLAG_SOLVED];
+		if (this.flag & PROMISE_FLAG_RESOLVED) obj.value = this.result;
+		if (this.flag & PROMISE_FLAG_REJECTED) obj.error = this.result;
+		return obj;
+	}
 
-		// val is function? must be thunk.
-		if (typeof val === 'function') {
-			val(function (e, v) { $$callback. call($this, e, v); });
-			return;
-		}
+	// Promise#then(resolve, reject)
+	function then(resolve, reject) {
+		return new PromiseNext(this, reject, resolve, undefined);
+	}
 
-		$$callback.call($this, null, val);
+	// Promise#catch(reject)
+	function caught(reject) {
+		return new PromiseNext(this, reject, undefined, undefined);
+	}
+
+	// $$thunk(thunk, cb)
+	function $$thunk(thunk, cb) {
+		return new PromiseNext(thunk, undefined, undefined, cb);
+	}
+
+	// $$resolve(thunk, val
+	function $$resolve(thunk, val) {
+		if (thunk.flag & PROMISE_FLAG_SOLVED) return;
+
+		if (isPromise(val))
+			return val.then(
+				function (v) { return $$resolve(thunk, v); },
+				function (e) { return $$reject(thunk, e); });
+
+		thunk.result = val;
+		thunk.flag = PROMISE_FLAG_RESOLVED;
+		if (thunk.head) nextExec(thunk, $$fire);
 	} // $$resolve
 
-	// $$reject(err)
-	var $$reject = $$callback;
+	// $$reject(thunk, err)
+	function $$reject(thunk, err) {
+		if (thunk.flag & PROMISE_FLAG_RESOLVED)
+			return hasConsoleError && console.error(colors.yellow('* Resolved promise rejected: ') +
+				thunk + '\n' + colors.purple('* ' + errmsg(err)));
+		if (thunk.flag & PROMISE_FLAG_REJECTED)
+			return hasConsoleError && console.error(colors.yellow('* Rejected promise rejected: ') +
+				thunk + '\n' + colors.purple('* ' + errmsg(err)));
 
-	// $$fire()
-	function $$fire() {
-		var elem;
-		var $args = this.$args;
-		var $state = this.$state;
-		var $callbacks = this.$callbacks;
-		if (!$args) return; // not yet fired
-		while (elem = $callbacks.shift()) {
-			if (elem[STATE_THUNK]) {
-				this.$handled = true;
-				elem[STATE_THUNK].apply(null, $args);
-			}
-			else if (elem[$state]) {
-				if ($state === STATE_REJECTED) this.$handled = true;
-				elem[$state]($args[$state]);
-			}
+		thunk.result = (typeof err === 'object' && err instanceof Error) ? err : Error(err);
+		thunk.flag = PROMISE_FLAG_REJECTED;
+		nextExec(thunk, $$fire);
+	} // $$reject
+
+	// $$callback(thunk, err, val)
+	function $$callback(thunk, err, val) {
+		return err ? $$reject(thunk, err) : $$resolve(thunk, val);
+	}
+	// thunk.$$callback2(err, val, ...)
+	function $$callback2(err, val) {
+		switch (arguments.length) {
+			case 2: return err instanceof Error ? $$reject(this, err) : $$resolve(this, val);
+			case 1: return err instanceof Error ? $$reject(this, err) : $$resolve(this, err);
+			case 0: return $$resolve(this);
+			default: return err instanceof Error ?
+				$$reject(this, err) :
+				$$resolve(this, slice.call(arguments, 1));
 		}
-		nextTick(this, null, $$checkUnhandledRejection);
+	}
+
+	// $$fire(thunk)
+	function $$fire(thunk) {
+		if (!(thunk.flag & PROMISE_FLAG_SOLVED)) return;
+
+		if (thunk.flag & PROMISE_FLAG_REJECTED) var err = thunk.result;
+		else var val = thunk.result, err = null;
+
+		var bomb;
+		while (bomb = thunk.head) {
+			thunk.head = bomb.chain;
+			bomb.chain = undefined;
+			if (!thunk.head) thunk.tail = undefined;
+
+			fire(bomb.thunk, err, val, bomb.rej, bomb.res, bomb.cb);
+
+			if ((thunk.flag & PROMISE_FLAG_UNHANDLED) ===
+					PROMISE_FLAG_UNHANDLED_REJECTION)
+				$$rejectionHandled(thunk);
+			thunk.flag |= PROMISE_FLAG_HANDLED;
+		}
+
+		if (thunk.flag === PROMISE_FLAG_REJECTED)
+			nextExec(thunk, $$checkUnhandledRejection);
 	} // $$fire
 
-	// $$checkUnhandledRejection()
-	function $$checkUnhandledRejection() {
-		var $args = this.$args;
-		if (this.$state === STATE_REJECTED && !this.$handled) {
-			console.info(COLOR_OK + this + COLOR_NORMAL);
-			console.error(COLOR_ERROR + 'Unhandled rejection ' + err2str($args[ARGS_ERR]) + COLOR_NORMAL);
-			// or throw $args[0];
-			// or process.emit...
+	function fire(thunk, err, val, rej, res, cb) {
+		try {
+			var r = cb ? (
+					cb.length == 2 ? cb(err, val) :
+					cb.length == 1 ? err ? cb(err) : cb(val) :
+					cb.length == 0 ? cb(err, val) :
+					cb.apply(null, [err].concat(val))
+				) :
+				err ? (rej ? rej(err) : err) :
+				res ? res(val) : undefined;
+			firebytype[typeof r](thunk, r);
+		} catch (e) { $$reject(thunk, e); }
+	} // fire
+
+	var firebytype = {
+		number: $$resolve, string: $$resolve, boolean: $$resolve, undefined: $$resolve,
+		object: function (thunk, r) {
+			if (r === null) $$resolve(thunk, r);
+			else if (typeof r.then === 'function')
+				r.then(
+					function (v) { return $$resolve(thunk, v); },
+					function (e) { return $$reject(thunk, e); });
+			else if (r instanceof Error) $$reject(thunk, r);
+			else $$resolve(thunk, r);
+		},
+		'function': function (thunk, r) {
+			if (typeof r.then === 'function')
+				r.then(
+					function (v) { return $$resolve(thunk, v); },
+					function (e) { return $$reject(thunk, e); });
+			else r(function () { return $$callback2.apply(thunk, arguments); });
 		}
-	} // $$checkUnhandledRejection
+	};
 
-	// PromiseThunk#then(res, rej)
-	var $$then = then;
-	setValue(PromiseThunk.prototype, 'then', then);
-	function then(res, rej) {
-		if (res && typeof res !== 'function')
-			throw new TypeError('resolved must be a function');
-		if (rej && typeof rej !== 'function')
-			throw new TypeError('rejected must be a function');
+	// $$checkUnhandledRejection(thunk)
+	function $$checkUnhandledRejection(thunk) {
+		if (!(thunk.flag & PROMISE_FLAG_UNHANDLED))
+			$$unhandledRejection(thunk);
+	}
 
-		var p = PromiseThunk();
-		this.$callbacks.push([
-			function (err) {
-				try { // then err
-					if (rej) $$resolve.call(p, rej(err));
-					else     $$reject.call(p, err);
-				} catch (e) {
-					$$reject.call(p, err);
-					console.error(COLOR_ERROR + 'Unhandled callback error: ' + err2str(e) + COLOR_NORMAL);
-					$$reject.call(p, e);
-				}
-			},
-			function (val) {
-				try { // then val
-					if (res) $$resolve.call(p, res(val));
-					else     $$resolve.call(p, val)
-				} catch (e) {
-					$$reject.call(p, e);
-				}
+	// $$unhandledRejection(thunk)
+	function $$unhandledRejection(thunk) {
+		thunk.flag |= PROMISE_FLAG_UNHANDLED_REJECTION;
+		if (typeof process === 'object' && process && typeof process.on === 'function')
+			process.emit('unhandledRejection', thunk.result, thunk);
+		hasConsoleError &&
+		console.error(colors.yellow('* UnhandledRejection: ') + thunk +
+			colors.purple('\n* ' + errmsg(thunk.result)));
+	}
+
+	// $$rejectionHandled(thunk)
+	function $$rejectionHandled(thunk) {
+		if (typeof process === 'object' && process && typeof process.on === 'function')
+			process.emit('rejectionHandled', thunk);
+		hasConsoleError &&
+		console.error(colors.green('* RejectionHandled:   ') + thunk);
+	}
+
+	// Promise.all([p, ...])
+	function all(promises) {
+		if (isIterator(promises)) promises = makeArrayFromIterator(promises);
+		if (!(promises instanceof Array))
+			throw new TypeError('promises must be an array');
+		return new Promise(
+			function promiseAll(resolve, reject) {
+				var n = promises.length;
+				if (n === 0) return resolve([]);
+				var res = Array(n);
+				promises.forEach(function (p, i) {
+					function complete(val) {
+						res[i] = val; if (--n === 0) resolve(res); }
+					if (isPromise(p))
+						return p.then(complete, reject);
+					complete(p);
+				}); // promises.forEach
 			}
-		]);
-		nextTick(this, $$fire);
-		return p;
-	} // then
+		); // return new Promise
+	} // all
 
-	// PromiseThunk#catch(rej)
-	var $$catch = caught;
-	setValue(PromiseThunk.prototype, 'catch', caught);
-	function caught(rej) {
-		if (typeof rej !== 'function')
-			throw new TypeError('rejected must be a function');
+	// Promise.race([p, ...])
+	function race(promises) {
+		if (isIterator(promises)) promises = makeArrayFromIterator(promises);
+		if (!(promises instanceof Array))
+			throw new TypeError('promises must be an array');
 
-		var p = PromiseThunk();
-		this.$callbacks.push([
-			function (err) {
-				try { // catch err
-					$$resolve.call(p, rej(err));
-				} catch (e) {
-					$$reject.call(p, err);
-					console.log('\x1b[41m' + e + '\x1b[m');
-				}
+		return new Promise(
+			function promiseRace(resolve, reject) {
+				promises.forEach(function (p) {
+					if (isPromise(p))
+						return p.then(resolve, reject);
+					resolve(p);
+				}); // promises.forEach
 			}
-		]);
-		nextTick(this, $$fire);
-		return p;
-	} // catch
+		); // return new Promise
+	} // race
 
-	// PromiseThunk#toString()
-	setValue(PromiseThunk.prototype, 'toString', toString);
-	var $$toString = toString;
-	function toString() {
-		return 'PromiseThunk { ' + (
-			this.$state === STATE_UNRESOLVED ? '<pending>' :
-			this.$state === STATE_RESOLVED ? JSON.stringify(this.$args[ARGS_VAL]) :
-			'<rejected> ' + this.$args[ARGS_ERR]) + ' }';
-	} // toString
+	// isPromise(p)
+	function isPromise(p) {
+		return (typeof p === 'object' && !!p || typeof p === 'function') && typeof p.then === 'function';
+	}
 
-	// PromiseThunk.promisify(fn)
-	setValue(PromiseThunk, 'promisify', promisify);
-	setValue(PromiseThunk, 'wrap',      promisify);
+	// isIterator(iter)
+	function isIterator(iter) {
+		return typeof iter === 'object' && !!iter && (typeof iter.next === 'function' || isIterable(iter));
+	}
+
+	// isIterable(iter)
+	function isIterable(iter) {
+		return typeof iter === 'object' && !!iter && typeof Symbol === 'function' &&
+			!!Symbol.iterator && typeof iter[Symbol.iterator] === 'function';
+	}
+
+	// makeArrayFromIterator(iter or array)
+	function makeArrayFromIterator(iter) {
+		if (iter instanceof Array) return iter;
+		if (!isIterator(iter)) return [iter];
+		if (isIterable(iter)) iter = iter[Symbol.iterator]();
+		var array = [];
+		try {
+			for (;;) {
+				var val = iter.next();
+				if (val && val.hasOwnProperty('done') && val.done) return array;
+				if (val && val.hasOwnProperty('value')) val = val.value;
+				array.push(val);
+			}
+		} catch (error) {
+			return array;
+		}
+	} // makeArrayFromIterator
+
+	// promisify(fn, [options])
 	function promisify(fn, options) {
 		// promisify(object target, string method, [object options]) : undefined
 		if (fn && typeof fn === 'object' && options && typeof options === 'string') {
@@ -333,7 +552,7 @@ this.PromiseThunk = function () {
 				get: function () {
 					return this.hasOwnProperty(methodAsyncCached) &&
 						typeof this[methodAsyncCached] === 'function' ? this[methodAsyncCached] :
-						setValue(this, methodAsyncCached, promisify(this, this[method]));
+						(setValue(this, methodAsyncCached, promisify(this, this[method])), this[methodAsyncCached]);
 				},
 				configurable: true
 			});
@@ -352,7 +571,7 @@ this.PromiseThunk = function () {
 		return promisified;
 		function promisified() {
 			var args = arguments;
-			return PromiseThunk(function (res, rej) {
+			return new Promise(function (res, rej) {
 				args[args.length++] = function callback(err, val) {
 					try {
 						return err instanceof Error ? rej(err) :
@@ -371,8 +590,7 @@ this.PromiseThunk = function () {
 		};
 	} // promisify
 
-	// PromiseThunk.thunkify(fn)
-	setValue(PromiseThunk, 'thunkify',  thunkify);
+	// thunkify(fn, [options])
 	function thunkify(fn, options) {
 		// thunkify(object target, string method, [object options]) : undefined
 		if (fn && typeof fn === 'object' && options && typeof options === 'string') {
@@ -385,7 +603,7 @@ this.PromiseThunk = function () {
 				get: function () {
 					return this.hasOwnProperty(methodAsyncCached) &&
 						typeof this[methodAsyncCached] === 'function' ? this[methodAsyncCached] :
-						setValue(this, methodAsyncCached, thunkify(this, this[method]));
+						(setValue(this, methodAsyncCached, thunkify(this, this[method])), this[methodAsyncCached]);
 				},
 				configurable: true
 			});
@@ -407,6 +625,7 @@ this.PromiseThunk = function () {
 			arguments[arguments.length++] = function callback(err, val) {
 				if (result) {
 					if (err)
+						hasConsoleError &&
 						console.error(COLOR_ERROR + 'Unhandled callback error: ' + err2str(err) + COLOR_NORMAL);
 					return;
 				}
@@ -414,6 +633,7 @@ this.PromiseThunk = function () {
 				result = arguments;
 				if (callbacks.length === 0 && err instanceof Error)
 					unhandled = true,
+					hasConsoleError &&
 					console.error(COLOR_ERROR + 'Unhandled callback error: ' + err2str(err) + COLOR_NORMAL);
 
 				for (var i = 0, n = callbacks.length; i < n; ++i)
@@ -429,6 +649,7 @@ this.PromiseThunk = function () {
 
 				if (unhandled)
 					unhandled = false,
+					hasConsoleError &&
 					console.error(COLOR_ERROR + 'Unhandled callback error handled: ' + err2str(result[0]) + COLOR_NORMAL);
 
 				if (result) return fire(cb);
@@ -453,8 +674,8 @@ this.PromiseThunk = function () {
 		}; // thunkified
 	} // thunkify
 
-	// PromiseThunk.promisifyAll(object, options)
-	setValue(PromiseThunk, 'promisifyAll', function promisifyAll(object, options) {
+	// promisifyAll(object, options)
+	function promisifyAll(object, options) {
 		var keys = [];
 		if (Object.getOwnPropertyNames) keys = Object.getOwnPropertyNames(object);
 		else if (Object.keys) keys = Object.keys(object);
@@ -467,10 +688,10 @@ this.PromiseThunk = function () {
 				promisify(object, method, options);
 		});
 		return object;
-	});
+	}
 
-	// PromiseThunk.thunkifyAll(object, options)
-	setValue(PromiseThunk, 'thunkifyAll', function thunkifyAll(object, options) {
+	// thunkifyAll(object, options)
+	function thunkifyAll(object, options) {
 		var keys = [];
 		if (Object.getOwnPropertyNames) keys = Object.getOwnPropertyNames(object);
 		else if (Object.keys) keys = Object.keys(object);
@@ -483,138 +704,33 @@ this.PromiseThunk = function () {
 				thunkify(object, method, options);
 		});
 		return object;
-	});
-
-	// PromiseThunk.resolve(val)
-	setValue(PromiseThunk, 'resolve', function resolve(val) {
-		return PromiseThunk(PROMISE_RESOLVE, val);
-	});
-
-	// PromiseThunk.reject(err)
-	setValue(PromiseThunk, 'reject', function reject(err) {
-		return PromiseThunk(PROMISE_REJECT, err);
-	});
-
-	// PromiseThunk.convert(promise or thunk)
-	setValue(PromiseThunk, 'convert', function convert(promise) {
-		if (isPromise(promise)) {
-			var p = PromiseThunk();
-			promise.then(
-				function (v) { $$resolve.apply(p, arguments); },
-				function (e) { $$reject.apply(p, arguments); });
-			return p;
-		}
-		return PromiseThunk(PROMISE_RESOLVE, promise);
-	});
-	var $$convert = PromiseThunk.convert;
-
-	// PromiseThunk.all([p, ...])
-	setValue(PromiseThunk, 'all', all);
-	function all(promises) {
-		if (isIterator(promises)) promises = makeArrayFromIterator(promises);
-		if (!(promises instanceof Array))
-			throw new TypeError('promises must be an array');
-
-		return PromiseThunk(
-			function promiseAll(resolve, reject) {
-				var n = promises.length;
-				if (n === 0) return resolve([]);
-				var res = Array(n);
-				promises.forEach(function (p, i) {
-					function complete(val) {
-						res[i] = val; if (--n === 0) resolve(res); }
-					function error(err) {
-						if (n > 0) reject(err); n = 0; }
-					if (p instanceof PromiseThunk || isPromise(p))
-						return p.then(complete, error);
-					complete(p);
-				}); // promises.forEach
-			}
-		); // return PromiseThunk
-	} // all
-
-	// PromiseThunk.race([p, ...])
-	setValue(PromiseThunk, 'race', race);
-	function race(promises) {
-		if (isIterator(promises)) promises = makeArrayFromIterator(promises);
-		if (!(promises instanceof Array))
-			throw new TypeError('promises must be an array');
-
-		return PromiseThunk(
-			function promiseRace(resolve, reject) {
-				promises.forEach(function (p) {
-					if (p instanceof PromiseThunk || isPromise(p))
-						return p.then(resolve, reject);
-					resolve(p);
-				}); // promises.forEach
-			}
-		); // return PromiseThunk
-	} // race
-
-	// PromiseThunk.accept(val)
-	setValue(PromiseThunk, 'accept', PromiseThunk.resolve);
-
-	// PromiseThunk.defer()
-	setValue(PromiseThunk, 'defer', defer);
-	function defer() {
-		var p = PromiseThunk();
-		return {promise: p,
-			resolve: function resolve() { $$resolve.apply(p, arguments); },
-			reject:  function reject()  { $$reject.apply(p, arguments); }};
 	}
 
-	// isPromise(p)
-	setValue(PromiseThunk, 'isPromise', isPromise);
-	function isPromise(p) {
-		return !!p && typeof p.then === 'function';
-	}
 
-	// isIterator(iter)
-	setValue(PromiseThunk, 'isIterator', isIterator);
-	function isIterator(iter) {
-		return !!iter && (typeof iter.next === 'function' || isIterable(iter));
-	}
-
-	// isIterable(iter)
-	setValue(PromiseThunk, 'isIterable', isIterable);
-	function isIterable(iter) {
-		return !!iter && typeof Symbol === 'function' &&
-				!!Symbol.iterator && typeof iter[Symbol.iterator] === 'function';
-	}
-
-	// makeArrayFromIterator(iter or array)
-	setValue(PromiseThunk, 'makeArrayFromIterator', makeArrayFromIterator);
-	function makeArrayFromIterator(iter) {
-		if (iter instanceof Array) return iter;
-		if (!isIterator(iter)) return [iter];
-		if (isIterable(iter)) iter = iter[Symbol.iterator]();
-		var array = [];
-		try {
-			for (;;) {
-				var val = iter.next();
-				if (val && val.hasOwnProperty('done') && val.done) return array;
-				if (val && val.hasOwnProperty('value')) val = val.value;
-				array.push(val);
-			}
-		} catch (error) {
-			return array;
-		}
-	} // makeArrayFromIterator
+	/*
+	var p1 = Promise.reject(new Error);
+	setTimeout(function () {
+		p1.catch(function () {});
+	}, 1);
+	var p2 = Promise.reject(new Error).then(function () {});
+	setTimeout(function () {
+		p2.catch(function () {});
+	}, 1);
+	*/
 
 	function err2str(err) {
-		var msg = err.stack || (err + '');
-		return msg.split('\n').filter(filterExcludeMocha).join('\n');
+		return err.stack || (err + '');
 	}
 
-	function filterExcludeMocha(s) {
-		return !s.match(/node_modules.*mocha/);
-	}
+
+	if (!global.Promise) global.Promise = Promise;
+	if (!global.PromiseThunk) global.PromiseThunk = Promise;
+	setValue(Promise, 'Promise', Promise);
+	setValue(Promise, 'PromiseThunk', Promise);
 
 	if (typeof module === 'object' && module && module.exports)
-		module.exports = PromiseThunk;
+		module.exports = Promise;
 
-	setValue(PromiseThunk, 'PromiseThunk', PromiseThunk);
-	setValue(PromiseThunk, 'Promise',      PromiseThunk);
-	return PromiseThunk;
+	return Promise;
 
-}();
+}(Function('return this')(), typeof Promise === 'function' ? Promise : null);
